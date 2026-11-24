@@ -8,4 +8,5 @@ venv/
 scratchpad/
 scripts/
 requirements.txt
+linkedin.md
 *.log
