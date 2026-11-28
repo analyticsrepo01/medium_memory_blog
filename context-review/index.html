@@ -357,10 +357,10 @@
         Handing context compaction directly to frontier models nearly triples tight-budget accuracy — yet also exposes bizarre model personalities, "Context Anxiety," and a hidden serving-engine cache trap. Here is what NVIDIA’s November 2026 study actually proves (and where the hard open problems remain).
       </p>
       <div class="byline">
-        <div class="avatar">PR</div>
+        <div class="avatar">S</div>
         <div>
-          <div style="color:#111827; font-weight:600;">Agentic Systems &amp; Research Review</div>
-          <div>Reviewing Devoto et al. (NVIDIA, Nov 25, 2026) · <a href="https://arxiv.org/html/2611.34147v1" style="color:#1d4ed8;">Read Original Paper</a></div>
+          <div style="color:#111827; font-weight:600;">Saurabh</div>
+          <div>Building Production Agentic Systems · Reviewing Devoto et al. (NVIDIA, Nov 25, 2026) · <a href="https://arxiv.org/html/2611.34147v1" style="color:#1d4ed8;">Read Original Paper</a></div>
         </div>
       </div>
     </header>
@@ -639,8 +639,12 @@ original_event = self.events["9"]</code></pre>
       Once an agent starts actively curating its own prompt mid-trajectory, those three silos collapse into one system. Models need post-training that teaches calibrated compaction without Context Anxiety; harnesses need reversible, tag-indexed context primitives; and inference engines need first-class KV cache editing so trimming context saves real GPU cycles instead of triggering cache thrashing.
     </p>
 
+    <hr class="section-dots" />
+
+    <h2>Key Takeaways</h2>
+
     <div class="takeaway-box">
-      <h3>Four Practical Rules for Agent Builders (What to Apply This Week)</h3>
+      <h3>Key Takeaways — Four Practical Rules for Agent Builders</h3>
       <ol>
         <li><strong>Make every compaction reversible by ID/tag.</strong> Never destroy raw tool outputs during compaction. Archive them behind a lightweight lookup call (like <code>events[tag]</code>) so capable models can compress boldly and recover exact facts when needed.</li>
         <li><strong>Always include an explicit timing threshold (e.g., 85%) + live usage meter.</strong> Leaving timing open-ended invites <em>Context Anxiety</em>—causing models like Kimi K3, DeepSeek V4, and Opus 5.5 to panic-prune at 16%–40% utilization and sacrifice ~8 accuracy points.</li>
@@ -653,7 +657,22 @@ original_event = self.events["9"]</code></pre>
       We are watching agent context evolve the exact same way computer memory evolved decades ago—from fixed flat buffers, to crude operating-system swapping, to hardware-assisted virtual memory co-designed with compilers and CPUs. NVIDIA’s NOOA study is an early, crystal-clear field report from that exact inflection point.
     </p>
     <p style="font-size: 17px; color: #575757;">
-      <em>Primary Source: Alessio Devoto et al. (NVIDIA), <a href="https://arxiv.org/html/2611.34147v1" style="color:#1d4ed8;">"Letting Models Manage Their Own Context: Where We Stand" (arXiv:2611.34147v1, Nov 25, 2026)</a>.</em>
+      <em>Primary Source: Alessio Devoto et al. (NVIDIA), <a href="https://arxiv.org/html/2611.34147v1" style="color:#1d4ed8;">"Letting Models Manage Their Own Context: Where We Stand" (arXiv:2611.34147v1, Nov 25, 2026)</a>. For how in-window context control pairs with external memory lifecycles, see my companion guides: <a href="https://saurabhm14.medium.com/guide-to-memory-in-ai-agents-building-intelligent-context-aware-systems-a0869a73cbac" style="color:#1d4ed8;">Guide to Memory in AI Agents</a> and <a href="https://analyticsrepo01.github.io/medium_memory_blog/" style="color:#1d4ed8;">The 6 Layers of Agentic Memory</a>.</em>
+    </p>
+
+    <hr class="section-dots" />
+
+    <h2>About the Author</h2>
+    <p>
+      I’m <strong>Saurabh</strong>, and I build production agentic systems. This review is grounded in real-world experience implementing memory and context management in multi-user AI applications, including healthcare, finance, and e-commerce use cases.
+    </p>
+    <p>If you found this helpful, please:</p>
+    <ul>
+      <li>⭐ <a href="https://github.com/analyticsrepo01/medium_context_review" style="color:#1d4ed8;">Star the GitHub repository</a></li>
+      <li>💬 Share your memory and context engineering experiences in the comments</li>
+    </ul>
+    <p>
+      Building something with agent memory or long-horizon context management? I’d love to hear about your use case and challenges!
     </p>
 
     <div class="tags">
