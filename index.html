@@ -841,6 +841,70 @@ UPDATE memory_watermarks
     <hr class="section-dots" />
 
     <!-- ================================================================== -->
+    <!-- END-TO-END MULTI-SURFACE TRACE (ALL 6 LAYERS IN ACTION) -->
+    <!-- ================================================================== -->
+    <span class="layer-badge badge-ops">End-to-End Walkthrough · All 6 Layers Working Together</span>
+    <h2>Tracing a 2:14 AM Production Incident Across All Six Memory Layers</h2>
+
+    <p>
+      Abstract diagrams are easy to nod along with; real systems earn trust when you trace exact timestamps across a messy night. Here is how all six governed memory layers coordinate during a live multi-surface incident—with zero stale-state hallucinations:
+    </p>
+
+    <ul>
+      <li><strong>02:14:02 UTC — Silent Failure Fires (Zero Chat Involved):</strong> A regional connection pool saturates in Frankfurt and triggers an automated canary rollback. A column-selective change stream on <code>incident_cases</code> emits one compact mutation (ignoring thousands of noisy heartbeat rows). Within 340 milliseconds, the Memory Event Router validates the commit timestamp watermark, tokenizes private identifiers, and opens a single canonical <strong>Layer 4 Episodic Case Card</strong> keyed to <code>incident:402</code> (Status: <code>Detected</code>).</li>
+      <li><strong>02:15:10 UTC — Live Capacity Check Behind the Firewall:</strong> The autonomous incident-response agent wakes up to evaluate rerouting traffic. Instead of trusting a stale note from Monday saying Cluster B had 40% spare headroom, a pre-turn hook populates the <strong>Layer 2 Working Scratchpad</strong> directly from the live cluster scheduler in 12 milliseconds: <em>Cluster B is at 94% saturation; Tokyo Standby has 62% headroom</em>. The moment the reasoning step ends, those numbers are shredded so they can never poison tomorrow’s runs.</li>
+      <li><strong>02:15:45 UTC — Policy &amp; Preference Verification:</strong> Before proposing a cross-region failover, the agent consults <strong>Layer 3 (Long-Term Profile)</strong>—which already reflects last week’s web-console settings change preferring Tokyo over Virginia—and queries <strong>Layer 5 (Bi-Temporal Semantic Rulebook)</strong> filtered on <code>valid_to IS NULL</code> to confirm today’s active data-residency rule permits Tokyo failover while keeping last quarter’s retired rule untouched for auditors.</li>
+      <li><strong>02:16:30 UTC — Cross-Surface Passkey Approval:</strong> Shifting production traffic requires human step-up authorization. The on-call engineer taps <em>Approve Failover</em> on their phone. The backend writes a 15-minute cryptographic approval token into <strong>Layer 1 (Short-Term Session State)</strong> in 14 milliseconds. The incident agent reads the shared blackboard immediately, executes the reroute, and updates <code>incident:402</code> in place to <code>Mitigated</code>. Fifteen minutes later, Layer 1 wipes the temporary approval token automatically.</li>
+      <li><strong>09:05:00 UTC — Human Verification &amp; Clean Closure:</strong> After morning verification, the team closes the ticket in the issue tracker. The change stream updates the single canonical <code>incident:402</code> card in Layer 4 to <code>Resolved</code>—leaving zero orphaned "still broken" fragments to confuse next month’s searches.</li>
+      <li><strong>Friday Offline Cycle — Safe Skill Compounding:</strong> Offline distillation notices engineers consistently checked regional quota headroom before failover across 14 recent incidents. It opens a Git pull request for <strong>Layer 6 (Procedural Playbook v2.4)</strong>, replays 500 historical edge cases inside an isolated evaluation sandbox, passes every safety assertion, and ships behind a 1-second rollback pointer.</li>
+    </ul>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- PRODUCTION OBSERVABILITY, LATENCY BUDGETS & FAILURE MODES -->
+    <!-- ================================================================== -->
+    <h2>Production Engineering Checklist: Latency Budgets, Failure Modes &amp; Observability</h2>
+
+    <p>
+      If you are taking this six-layer architecture into production, treat memory governance like any other critical distributed subsystem—with explicit latency targets, defensive failure-mode checks, and clear operational dashboards from week one.
+    </p>
+
+    <div class="layer-card persistent">
+      <strong class="kicker">Target Latency &amp; Freshness Budgets by Layer</strong>
+      <ul>
+        <li><strong>Layer 1 (Short-Term Session State):</strong> &lt;20 ms read/write p95 on the hot request path; strict 15–30 minute automatic expiry.</li>
+        <li><strong>Layer 2 (Working Scratchpad):</strong> &lt;15 ms parallel live lookup per turn; 0 ms retention after response flush.</li>
+        <li><strong>Layers 3, 4 &amp; 5 (Asynchronous State-Transition Sync):</strong> &lt;500 ms end-to-end propagation from transactional database commit to updated memory store—fully off the user-facing request path.</li>
+        <li><strong>Layer 6 (Procedural Playbooks):</strong> Offline batch cadence (daily or weekly) with &lt;2 second live pointer flip and &lt;1 second circuit-breaker rollback.</li>
+      </ul>
+    </div>
+
+    <div class="layer-card warning">
+      <strong class="kicker">Five Production Failure Modes — And the Invariant That Stops Each One</strong>
+      <ul>
+        <li><strong>1. Stale Telemetry Masquerading as Truth:</strong> Prevented by enforcing a strict <code>temp:</code> namespace prefix that post-turn memory extractors are hard-coded to strip before consolidation.</li>
+        <li><strong>2. Out-of-Order Network Clobbering:</strong> Prevented by requiring every change-stream mutation to carry its source <code>commit_timestamp</code> and pass through the atomic High-Water-Mark fence before updating state.</li>
+        <li><strong>3. Orphaned Incident Fragments in Vector Search:</strong> Prevented by keying episodic rows on canonical business IDs (<code>incident:402</code>, <code>shipment:9182</code>) with timestamp-guarded upserts instead of blind appends.</li>
+        <li><strong>4. Zero-Rule or Dual-Rule Policy Windows:</strong> Prevented by wrapping bi-temporal <code>valid_to</code> closure and new <code>valid_from</code> insertion inside a single atomic database transaction.</li>
+        <li><strong>5. Indirect Memory Poisoning From Untrusted Prose:</strong> Prevented by source-provenance tagging—quarantining external comments as read-only evidence so only authenticated first-party actions can mutate profiles or rules.</li>
+      </ul>
+    </div>
+
+    <div class="layer-card">
+      <strong class="kicker">Five Health Metrics Every Platform Team Should Monitor on Day 1</strong>
+      <ul>
+        <li><strong>Stale-State Contradiction Rate:</strong> Share of sampled agent turns whose claims conflict with live ground truth (target: &lt;1%, moving toward 0.3%).</li>
+        <li><strong>Change-Stream Noise Reduction Ratio:</strong> Percentage of raw transactional writes filtered out at the column-selective stream layer (healthy target: &gt;95%).</li>
+        <li><strong>Watermark Rejection Count:</strong> Spikes reveal upstream broker lag or duplicate replay bursts—and confirm your fence is silently protecting fresh state.</li>
+        <li><strong>Scratchpad Hydration p95 Latency:</strong> Alerts immediately if an upstream live quota or sensor endpoint starts slowing down turn startup.</li>
+        <li><strong>Offline Sandbox Replay Pass Rate:</strong> Every candidate Layer 6 playbook must hold ≥99% behavioral equivalence on safe historical cases and 100% on safety-critical red-team regressions before promotion.</li>
+      </ul>
+    </div>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
     <!-- PART IV: AUTHORITY PRECEDENCE & 90-DAY ADOPTION -->
     <!-- ================================================================== -->
     <h2>Resolving Conflicts at Runtime: The Authority Precedence Ladder</h2>
