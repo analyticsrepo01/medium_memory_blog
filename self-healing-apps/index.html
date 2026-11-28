@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Why Self-Healing Apps Shouldn’t Guess in the Dark: Batch Coding Agents &amp; Clarification Loops</title>
+  <meta name="description" content="Raw production error logs tell an AI agent where code crashed, never what the product should have done. Here is a Principal Architect's blueprint uniting headless OpenHands batch sandboxes, Two-Patch ambiguity detection (+74% accuracy lift), $0 hibernation, and the 6-layer memory flywheel to ship verified bug fixes and real product upgrades." />
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="Why Self-Healing Apps Shouldn’t Guess in the Dark: Teaching Night-Shift Coding Agents When to Fix — and When to Ask" />
+  <meta property="og:description" content="Part 2 of the Agentic Application Architecture series: how windowed log batching, headless Docker reproduction sandboxes, 9 AM 1-click clarification cards, and Part 1's 6 memory layers turn noisy production logs into verified fixes and product upgrades." />
+  <meta property="og:image" content="https://analyticsrepo01.github.io/medium_memory_blog/self-healing-apps/assets/images/visual_01_cover_night_shift.png" />
+  <style>
+    :root {
+      --bg: #ffffff;
+      --paper: #faf9f6;
+      --ink: #191919;
+      --sub: #575757;
+      --border: #e6e6e6;
+      --code-bg: #0f172a;
+      --code-ink: #e2e8f0;
+      --accent: #1d4ed8;
+      --teal: #0d9488;
+      --amber: #b45309;
+      --rose: #be123c;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+      font-size: 20.5px;
+      line-height: 1.72;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .topbar {
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      color: var(--sub);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      background: rgba(255, 255, 255, 0.96);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(8px);
+    }
+
+    .topbar strong {
+      color: var(--ink);
+    }
+
+    .topbar a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .topbar a:hover {
+      text-decoration: underline;
+    }
+
+    .topbar-nav {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      display: inline-block;
+      background: #eff6ff;
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 12px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+    }
+
+    article {
+      max-width: 740px;
+      margin: 0 auto;
+      padding: 48px 24px 96px;
+    }
+
+    header.article-header {
+      margin-bottom: 36px;
+    }
+
+    h1 {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 42px;
+      line-height: 1.15;
+      letter-spacing: -0.028em;
+      font-weight: 800;
+      margin: 14px 0 18px;
+      color: #111827;
+    }
+
+    .subtitle {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 21px;
+      line-height: 1.48;
+      color: var(--sub);
+      font-weight: 400;
+      margin: 0 0 26px;
+    }
+
+    .byline {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      color: var(--sub);
+    }
+
+    .avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #1d4ed8, #0d9488);
+      color: #fff;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    h2 {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 30px;
+      line-height: 1.24;
+      letter-spacing: -0.02em;
+      font-weight: 800;
+      margin: 58px 0 18px;
+      color: #111827;
+    }
+
+    h3 {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 22px;
+      line-height: 1.3;
+      letter-spacing: -0.015em;
+      font-weight: 700;
+      margin: 34px 0 14px;
+      color: #0f172a;
+    }
+
+    .section-badge {
+      display: inline-block;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+
+    .badge-teal { background: #ccfbf1; color: #0f766e; }
+    .badge-cobalt { background: #dbeafe; color: #1d4ed8; }
+    .badge-amber { background: #fef3c7; color: #92400e; }
+    .badge-coral { background: #ffe4e6; color: #be123c; }
+
+    p {
+      margin: 0 0 24px;
+    }
+
+    ul, ol {
+      margin: 0 0 26px;
+      padding-left: 26px;
+    }
+
+    li {
+      margin-bottom: 12px;
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    figure.wide-figure {
+      width: min(980px, calc(100vw - 36px));
+      margin: 28px 50% 34px;
+      transform: translateX(-50%);
+      background: var(--paper);
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 14px 14px 12px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    figure.wide-figure img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 8px;
+    }
+
+    figcaption {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--sub);
+      text-align: center;
+      margin-top: 12px;
+      padding: 0 12px;
+    }
+
+    blockquote {
+      margin: 34px 0;
+      padding: 4px 0 4px 22px;
+      border-left: 4px solid var(--accent);
+      font-style: italic;
+      font-size: 22.5px;
+      line-height: 1.54;
+      color: #1e293b;
+    }
+
+    .callout-card {
+      background: var(--paper);
+      border: 1px solid #e2e8f0;
+      border-left: 4px solid var(--teal);
+      border-radius: 10px;
+      padding: 18px 22px;
+      margin: 22px 0 28px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 15.5px;
+      line-height: 1.62;
+      color: #1e293b;
+    }
+
+    .callout-card.cobalt { border-left-color: var(--accent); }
+    .callout-card.amber { border-left-color: var(--amber); background: #fffbeb; border-color: #fde68a; }
+    .callout-card.coral { border-left-color: var(--rose); background: #fff1f2; border-color: #fecdd3; }
+
+    .callout-card strong.kicker {
+      display: block;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--teal);
+      margin-bottom: 6px;
+    }
+
+    .callout-card.cobalt strong.kicker { color: var(--accent); }
+    .callout-card.amber strong.kicker { color: var(--amber); }
+    .callout-card.coral strong.kicker { color: var(--rose); }
+
+    .callout-card ul {
+      margin: 8px 0 0;
+      padding-left: 20px;
+    }
+
+    .callout-card li {
+      margin-bottom: 8px;
+    }
+
+    .table-wrap {
+      width: min(960px, calc(100vw - 36px));
+      margin: 26px 50% 34px;
+      transform: translateX(-50%);
+      overflow-x: auto;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      background: #ffffff;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+    }
+
+    table.gov-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      text-align: left;
+    }
+
+    table.gov-table thead th {
+      background: #0f172a;
+      color: #f8fafc;
+      font-weight: 700;
+      padding: 13px 15px;
+      white-space: nowrap;
+    }
+
+    table.gov-table tbody td {
+      padding: 13px 15px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: top;
+      color: #1e293b;
+    }
+
+    table.gov-table tbody tr:nth-child(even) {
+      background: var(--paper);
+    }
+
+    table.gov-table tbody tr.highlight-row {
+      background: #ecfdf5;
+    }
+
+    table.gov-table tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .takeaway-box {
+      background: #0f172a;
+      color: #f8fafc;
+      border-radius: 14px;
+      padding: 28px 30px;
+      margin: 34px 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
+    }
+
+    .takeaway-box h3 {
+      margin: 0 0 16px;
+      font-size: 20px;
+      color: #fbbf24;
+      letter-spacing: -0.01em;
+    }
+
+    .takeaway-box ol {
+      margin: 0;
+      padding-left: 22px;
+      font-size: 16px;
+      line-height: 1.65;
+    }
+
+    .takeaway-box li {
+      margin-bottom: 12px;
+    }
+
+    code {
+      font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.83em;
+      background: #f1f5f9;
+      color: #0f172a;
+      padding: 2px 6px;
+      border-radius: 5px;
+    }
+
+    pre {
+      background: var(--code-bg);
+      color: var(--code-ink);
+      padding: 18px 22px;
+      border-radius: 12px;
+      overflow-x: auto;
+      margin: 22px 0 28px;
+      line-height: 1.54;
+      font-size: 14px;
+    }
+
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+    }
+
+    .slack-card {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-left: 5px solid var(--amber);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin: 26px 0 32px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.58;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+    }
+
+    .slack-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .slack-meta {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #0f766e;
+      background: #ccfbf1;
+      padding: 3px 10px;
+      border-radius: 999px;
+    }
+
+    .slack-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .slack-btn {
+      display: inline-block;
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 13.5px;
+      font-weight: 700;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+
+    .slack-btn.primary {
+      background: #1d4ed8;
+      border-color: #1d4ed8;
+      color: #ffffff;
+    }
+
+    hr.section-dots {
+      border: 0;
+      text-align: center;
+      margin: 54px 0;
+    }
+
+    hr.section-dots::before {
+      content: "•   •   •";
+      color: #94a3b8;
+      font-size: 20px;
+      letter-spacing: 6px;
+    }
+
+    .references {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 14.5px;
+      line-height: 1.6;
+      color: #334155;
+      background: var(--paper);
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-top: 32px;
+    }
+
+    .references h3 {
+      margin: 0 0 12px;
+      font-size: 17px;
+      color: #0f172a;
+    }
+
+    .references ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .references li {
+      margin-bottom: 8px;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+    }
+
+    .tag {
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 13px;
+      padding: 6px 14px;
+      border-radius: 999px;
+    }
+
+    @media (max-width: 768px) {
+      h1 { font-size: 31px; }
+      .subtitle { font-size: 18px; }
+      body { font-size: 18.5px; }
+      figure.wide-figure,
+      .table-wrap {
+        width: 100%;
+        margin: 24px 0;
+        transform: none;
+      }
+      .topbar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="topbar-nav">
+      <strong>Agentic Systems Architecture · Part 2</strong>
+      <a href="../">← Read Part 1: 6 Memory Layers</a>
+      <a href="../context-review/">Paper Review: NVIDIA NOOA</a>
+    </div>
+    <div>16 min read · 10 Illustrated Figures &amp; Blueprints</div>
+  </div>
+
+  <article>
+    <header class="article-header">
+      <span class="pill">Series Part 2 · Self-Healing &amp; Self-Evolving Apps</span>
+      <h1>Why Self-Healing Apps Shouldn’t Guess in the Dark: Teaching Night-Shift Coding Agents When to Fix — and When to Ask</h1>
+      <p class="subtitle">
+        Raw error logs tell an autonomous agent <em>where</em> code crashed — never <em>what the product should have done</em>. Here is a complete production blueprint uniting headless OpenHands batch sandboxes, Two-Patch ambiguity detection (+74% fix accuracy), $0 hibernation, and our 6-layer memory flywheel to ship both verified bug fixes and real product upgrades overnight.
+      </p>
+      <div class="byline">
+        <div class="avatar">AA</div>
+        <div>
+          <div style="color:#111827; font-weight:600;">Agentic Architecture Series · Principal Systems Blueprint</div>
+          <div>Direct Sequel to <a href="../">Part 1: The 6 Layers of Agentic Memory</a> · OpenHands, Ambig-SWE &amp; Clarification-First Loops</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ================================================================== -->
+    <!-- EXECUTIVE SUMMARY / SERIES BRIDGE -->
+    <!-- ================================================================== -->
+    <div class="callout-card cobalt">
+      <strong class="kicker">The Core Thesis · Part 1 Took the Blindfold Off Memory; Part 2 Gives the Codebase a Night-Shift Mechanic</strong>
+      In <a href="../"><strong>Part 1</strong></a>, we wired a live SaaS workspace application to six governed memory layers so the daytime AI assistant stopped missing the 91% of state changes happening outside chat. In <strong>Part 2</strong>, we turn the exact same application’s overnight <strong>error and user-friction logs</strong> into a disciplined self-healing and self-evolving loop:<br />
+      <ul>
+        <li><strong>Batch &amp; Deduplicate First:</strong> 30-minute stack-trace windows + Layer 4 Case Diary checks slash runaway sandbox runs by <strong>98.5%</strong>.</li>
+        <li><strong>Reproduce Before Thinking:</strong> Headless <strong>OpenHands</strong> Docker containers prove every bug with a failing test before proposing a single line of fix.</li>
+        <li><strong>Detect Ambiguity Mathematically:</strong> Using the <em>Two-Patch Test</em>, agents pause at <strong>$0 compute cost</strong> whenever product rules are unclear, send one calm <strong>9:00 AM 3-button Slack/GitHub card</strong>, and lift verified fix accuracy by <strong>+74%</strong>.</li>
+        <li><strong>Go Beyond Crash Hotfixes:</strong> The exact same pipeline spots 180 users failing to upload <code>.TSV</code> files into a <code>.CSV</code> importer—turning warning logs into 1-click product upgrades.</li>
+      </ul>
+    </div>
+
+    <figure class="wide-figure">
+      <img src="assets/images/visual_01_cover_night_shift.png" alt="Split comparison contrasting a blindfolded auto-fix robot slapping a TRY/EXCEPT Band-Aid over a midnight error screen against a thoughtful night-shift coding agent reproducing bugs in a Docker sandbox, sending a 3-button Slack card, and shipping verified pull requests and product upgrades." />
+      <figcaption>
+        <strong>Figure 1 — The Blind Auto-Fix Trap vs. The Thoughtful Night Shift:</strong> Autonomous "alert-to-PR" bots get switched off because they guess silently at 2 AM. Pairing isolated reproduction sandboxes with calm morning clarification turns noisy logs into safe fixes and feature upgrades.
+      </figcaption>
+    </figure>
+
+    <p>
+      Every engineering leader has watched the same slick demo over the past year: a red production stack trace hits an observability webhook, an autonomous coding agent wakes up, edits three lines of code, and opens a GitHub pull request ninety seconds later. Applause breaks out. Everyone declares operations solved.
+    </p>
+    <p>
+      Then the team wires that demo to a real production service—and shuts it off within ten days.
+    </p>
+    <p>
+      Why? Not because frontier coding models can’t read Python or TypeScript stack traces. They are remarkably good at syntax and control flow. Blind self-healing agents fail in real organizations because of a deceptively simple truth: <strong>a stack trace tells you where the code exploded, never what business behavior your product team actually wants.</strong>
+    </p>
+
+    <blockquote>
+      Slapping a silent <code>try / except</code> or null-guard around an unhandled exception makes the red error chart drop to zero—while quietly turning a visible crash into a broken customer experience.
+    </blockquote>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- SECTION 1: CONTINUITY WITH PART 1 + THE DIRTY SECRET -->
+    <!-- ================================================================== -->
+    <span class="section-badge badge-teal">Part I · Series Continuity &amp; The Blind Auto-Fix Trap</span>
+    <h2>One Application, Two Halves of Intelligence</h2>
+
+    <p>
+      If you read <a href="../"><strong>Part 1 (The 6 Layers of Agentic Memory)</strong></a>, you already know our running SaaS workspace application. During the day, users click mobile buttons, switch deployment regions in settings, upload workspace files, and redeem promotional upgrades. Streaming those high-signal mutations asynchronously into six lifecycle-governed memory layers dropped stale-state assistant errors from <strong>41.8% down to 0.3%</strong>.
+    </p>
+    <p>
+      Now watch what happens to the exact same application after everyone closes their laptops at 6:00 PM. Traffic keeps flowing. Timezones cross midnight. Edge-case payloads hit older parsers. Users try uploading file formats your importer was never taught to accept. Daytime live memory kept the user-facing assistant aware; now a <strong>night-shift batch coding agent</strong> turns overnight error and friction logs into verified fixes and proposed enhancements.
+    </p>
+
+    <figure class="wide-figure">
+      <img src="assets/images/visual_02_two_halves_intelligence.png" alt="Two-half architecture diagram showing Part 1 Daytime Live Memory on the left (App Clicks, Settings Changes, and Chat Messages feeding 6 Memory Layers) and Part 2 Night-Shift Self-Healing on the right (Error and Friction Logs entering a Safe Batch Sandbox, triggering a 1-Click Morning Card, and shipping Verified Bug Fixes and Product Upgrades)." />
+      <figcaption>
+        <strong>Figure 2 — One Application, Two Halves of Intelligence:</strong> Daytime state-transition streams keep user memory fresh in real time (Part 1); night-shift log batches heal deterministic bugs and propose user-driven feature upgrades overnight (Part 2).
+      </figcaption>
+    </figure>
+
+    <h3>The Dirty Secret of Blind Self-Healing: Band-Aid Hallucinations</h3>
+    <p>
+      Walk through one concrete midnight incident to see why naive alert-to-PR bots lose engineering trust overnight. At <strong>12:03 AM</strong>, checkout logs spike with <code>[ERROR] CouponExpiredError: promo_code "FALL25" expired at 00:00:00 UTC</code> while shoppers in Tokyo and San Francisco are mid-checkout.
+    </p>
+    <p>
+      A blind auto-fix bot has one implicit incentive: <em>make the exception disappear and keep existing unit tests green</em>. So it catches <code>CouponExpiredError</code>, returns <code>discount = 0</code> silently, and opens a pull request claiming <em>"Fixed unhandled coupon crash."</em> The stack trace vanishes—while confused shoppers stare at a spinning checkout screen or silently get overcharged full price.
+    </p>
+
+    <figure class="wide-figure">
+      <img src="assets/images/visual_03_blind_autofix_vs_clarify.png" alt="Stacked Bad-vs-Good comparison: Top coral track shows a midnight Coupon Expired error slapped with a TRY/EXCEPT Band-Aid by a blindfolded robot leaving checkout broken; bottom teal track shows a clarification-first agent reproducing the bug in a Docker sandbox, sending a 3-option Slack card where the team clicks Option B (15-Min Grace Window), and shipping tested PR #42." />
+      <figcaption>
+        <strong>Figure 3 — Why Blind Auto-Fix Breaks Real Products:</strong> When a promo code fails three minutes past midnight, there are three completely valid product policies. Guessing silently breaks UX; pausing to ask one crisp multiple-choice question produces tested, product-aligned code.
+      </figcaption>
+    </figure>
+
+    <p>
+      Look at the bottom half of Figure 3. A <strong>clarification-first night-shift agent</strong> recognizes something a blind hotfix bot never asks: <em>handling a 12:03 AM expired promo is a product policy choice, not a syntax typo.</em> Should the checkout:
+    </p>
+    <ul>
+      <li><strong>Option A:</strong> Display a clearer inline banner explaining the promo expired at midnight UTC?</li>
+      <li><strong>Option B:</strong> Honor a <strong>15-minute grace window</strong> for carts already in checkout before midnight?</li>
+      <li><strong>Option C:</strong> Automatically swap in the active fallback welcome promo code?</li>
+    </ul>
+    <p>
+      Every single one of those patches compiles cleanly and passes existing tests. None of them can be deduced from a stack trace alone. Once a product manager clicks <strong>Option B</strong> over morning coffee, the agent wakes up, implements the 15-minute grace window alongside fresh boundary tests, opens <strong>PR #42</strong>, and records the new rule in long-term memory so it never has to guess—or ask—again.
+    </p>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- SECTION 2: 2025-2026 LANDSCAPE & BENCHMARKS -->
+    <!-- ================================================================== -->
+    <span class="section-badge badge-cobalt">Part II · 2025–2026 Landscape &amp; Empirical Proof</span>
+    <h2>Three Pieces Exist Separately Today — Almost Nobody Unites Them</h2>
+
+    <p>
+      Before designing anything new, a Principal Architect surveys what already exists in production and in frontier research. Across the 2025–2026 ecosystem, three remarkable building blocks have matured in separate silos:
+    </p>
+
+    <figure class="wide-figure">
+      <img src="assets/images/visual_04_landscape_three_pieces.png" alt="Three-column landscape comparison: 01 Black-Box Alert Fixers (Sentry Seer, Datadog Bits AI — auto-drafts simple crash hotfixes with vendor lock-in and blind guessing), 02 Open Batch Sandboxes (OpenHands, formerly OpenDevin — headless Docker sandboxes expecting clean human tickets), and 03 Clarification-First Loop (Our Blueprint — uniting log batching, OpenHands sandboxes, and 1-click clarification for +74% accuracy to ship fixes and product upgrades)." />
+      <figcaption>
+        <strong>Figure 4 — The 2025–2026 Landscape Gap:</strong> Commercial observability bots lock you into crash-only hotfixes; open coding sandboxes expect clean human-written issues; academic clarification research proved asking targeted questions transforms accuracy. Uniting all three is wide-open architectural territory.
+      </figcaption>
+    </figure>
+
+    <div class="table-wrap">
+      <table class="gov-table">
+        <thead>
+          <tr>
+            <th>Category / Platform</th>
+            <th>Trigger Input</th>
+            <th>Isolated Reproduction</th>
+            <th>Ambiguity Handling</th>
+            <th>Product Upgrades &amp; Memory</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Sentry Seer &amp; Autofix</strong></td>
+            <td>Crash stack traces, breadcrumbs &amp; session replay</td>
+            <td>Cloud-hosted runner (proprietary SaaS)</td>
+            <td>Assumes crash spec is clear; limited structured PM policy branching</td>
+            <td>Crash hotfixes only; closed vendor memory</td>
+          </tr>
+          <tr>
+            <td><strong>Datadog Bits AI Dev Agent</strong></td>
+            <td>APM 5XX spikes, error logs &amp; monitors</td>
+            <td>Managed sandbox tightly coupled to Datadog stack</td>
+            <td>Single-shot root-cause hypothesis → draft PR</td>
+            <td>Focused on error remediation, not friction-to-feature loops</td>
+          </tr>
+          <tr>
+            <td><strong>Resolve AI / Traversal</strong></td>
+            <td>Production alerts, telemetry &amp; traces</td>
+            <td>Live observability investigation &amp; ops runbooks</td>
+            <td>Interactive SRE chat triage</td>
+            <td>Infrastructure mitigation (rollbacks/scaling), not app feature PRs</td>
+          </tr>
+          <tr>
+            <td><strong>GitHub Copilot Coding Agent / Google Jules</strong></td>
+            <td>Human-written GitHub issues &amp; clean specs</td>
+            <td>Async cloud dev containers</td>
+            <td>Relies on humans writing unambiguous tickets up front</td>
+            <td>Starts after a human notices friction and writes a ticket</td>
+          </tr>
+          <tr>
+            <td><strong>OpenHands</strong> <em>(formerly OpenDevin; ICLR 2025 &amp; V1 SDK)</em></td>
+            <td>Headless REST API / CLI structured tasks</td>
+            <td>Open-source ephemeral Docker sandboxes + <code>CodeAct</code> Event Stream</td>
+            <td>Supports stateful pause/resume natively, but needs an external ambiguity gate</td>
+            <td>Repo <code>.openhands/microagents/*.md</code> playbooks ready to wire to Layer 6</td>
+          </tr>
+          <tr class="highlight-row">
+            <td><strong>Clarification-First Night-Shift Loop</strong> <em>(This Blueprint)</em></td>
+            <td><strong>30-min batched error + user-friction logs</strong></td>
+            <td><strong>Headless OpenHands Docker sandbox pinned to deployed <code>git_sha</code></strong></td>
+            <td><strong>Two-Patch Ambiguity Gate → $0 hibernation → 9 AM 3-button card</strong></td>
+            <td><strong>Ships bug fixes AND feature upgrades; compounds Part 1’s Layers 4, 5 &amp; 6</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The Quantitative Case: Why Blind Guessing Collapses — and Batching Cuts 98.5% Waste</h3>
+    <p>
+      Recent 2025–2026 software-engineering benchmarks—specifically <strong>Ambig-SWE</strong>, <strong>SWE-DIVE</strong>, <strong>ClarifyGPT</strong>, and <strong>CONTRA</strong>—exposed a blind spot in traditional leaderboards like <em>SWE-bench Verified</em>. Benchmark datasets hand agents artificially polished, human-curated bug reports. Strip away that hand-holding and feed models underspecified real-world signals (like raw production logs), and frontier models suffer what researchers call the <strong>Non-Interactive Default Pitfall</strong>: they silently invent assumptions rather than asking for clarity.
+    </p>
+
+    <figure class="wide-figure">
+      <img src="assets/charts/chart_01_ambiguity_and_batch_dedup.png" alt="Two-panel benchmark chart: Panel A shows verified fix accuracy dropping from 68.0% on clean human tickets to 31.5% on raw error logs with blind guessing, then recovering to 54.8% (+74% relative lift) with 1-click clarification; Panel B shows relative container runs dropping from 100% (1 agent per raw log) to 8.0% with 30-minute window grouping and down to 1.5% (-98.5% cost) after checking Layer 4 Case Diary memory." />
+      <figcaption>
+        <strong>Figure 5 — Empirical Lift &amp; Batch Economics:</strong> Left: asking 1–2 targeted clarification questions on underspecified issues recovers <strong>+74% relative fix accuracy</strong> (31.5% → 54.8%, aligned with <em>Ambig-SWE</em> / <em>ClarifyGPT</em> findings). Right: 30-minute fingerprint batching plus a Layer 4 Case Diary check eliminates <strong>98.5%</strong> of redundant Docker container runs.
+      </figcaption>
+    </figure>
+
+    <ul>
+      <li><strong>Accuracy collapse without clarification (Panel A):</strong> When an agent receives a clean human-written ticket, verified resolution reaches roughly <strong>68.0%</strong>. Drop the exact same model onto raw, underspecified error signals and force silent one-shot guessing, and accuracy plunges to <strong>31.5%</strong>. Introducing an explicit ambiguity gate with 1–2 targeted multiple-choice questions recovers <strong>54.8%</strong>—a <strong>+74% relative lift</strong> without changing the underlying model weights.</li>
+      <li><strong>Eliminating runaway container bills (Panel B):</strong> Real incidents never emit one tidy log line; a broken promo check emits 500 identical stack traces inside ten minutes. Triggering one agent container per alert creates a <strong>100% runaway storm</strong>. Grouping logs by normalized stack fingerprint over a 30-minute window slashes runs to <strong>8.0%</strong>, and checking Part 1’s <strong>Layer 4 Living Case Diary</strong> to skip already-open pull requests drops active container runs all the way to <strong>1.5% (−98.5% compute waste)</strong>.</li>
+    </ul>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- SECTION 3: INSIDE THE 4-STAGE NIGHT-SHIFT ENGINE -->
+    <!-- ================================================================== -->
+    <span class="section-badge badge-teal">Part III · System Blueprint</span>
+    <h2>Inside the Four-Stage Night-Shift Engine (From Log Batch to Morning PR)</h2>
+
+    <p>
+      Why build the execution backbone on <strong>OpenHands</strong> (formerly <em>OpenDevin</em>, published at ICLR 2025 and expanded in the modular <em>OpenHands V1 Software Agent SDK</em>)? Because OpenHands already solved the hardest infrastructure primitives you would otherwise spend six months rebuilding: headless REST/CLI execution, ephemeral Docker sandboxes, repo-local Markdown microagents, context condensers, and an append-only <code>CodeAct</code> Event Stream (<code>ConversationState</code>) that can be <strong>paused to disk and resumed hours later with zero lost reasoning context</strong>.
+    </p>
+
+    <figure class="wide-figure">
+      <img src="assets/images/visual_06_night_shift_architecture.png" alt="Four-step Night-Shift Engine architecture: 1. Collect and Group (500 noisy logs batched over 30 minutes into 1 clean case), 2. Safe Test Kitchen (clones repo into an isolated Docker sandbox and proves the bug with a failing test first), 3. Clear vs Vague Fork (clear bugs proceed to fix while vague rules shut down the sandbox at $0 cost and send an A/B/C morning card), 4. Morning Pull Request (green tests ready for 1-click human merge)." />
+      <figcaption>
+        <strong>Figure 6 — Four-Stage Batch Self-Healing Pipeline:</strong> Notice Stage 3’s operational superpower—because OpenHands persists its append-only Event Stream to object storage, the Docker container terminates completely (<strong>$0 compute cost</strong>) while waiting overnight for a morning human click.
+      </figcaption>
+    </figure>
+
+    <h3>Stage 1 — Windowed Log Collector &amp; Canonical Fingerprint Deduplicator</h3>
+    <p>
+      A lightweight cron or queue worker wakes every 15 to 60 minutes (30 minutes is the practical sweet spot). It pulls structured error logs, unhandled exceptions, and repeated <code>4xx</code> user-friction warnings, strips volatile request IDs and user tokens, and computes a deterministic fingerprint hash from <code>(service, exception_class, top_3_app_frames, route)</code>. Before spinning up a single container, it checks Part 1’s <strong>Layer 4 Case Diary</strong>:
+    </p>
+
+<pre><code>-- Stage 1: Deduplicate 500 noisy log lines into 1 canonical night-shift case
+INSERT INTO night_shift_cases
+  (fingerprint_hash, service, route, sample_count, first_seen_at, last_seen_at, status)
+VALUES
+  (:hash, :service, :route, :batch_count, :window_start, :window_end, 'QUEUED')
+ON CONFLICT (fingerprint_hash) DO UPDATE
+  SET sample_count = night_shift_cases.sample_count + EXCLUDED.sample_count,
+      last_seen_at = EXCLUDED.last_seen_at
+WHERE night_shift_cases.status NOT IN ('PR_OPEN', 'WAITING_CLARIFICATION', 'RESOLVED');</code></pre>
+
+    <p>
+      If a fingerprint already has an open pull request or a morning clarification card waiting for human input, the worker simply increments <code>sample_count</code> (giving the PM fresher impact numbers at 9:00 AM!) and exits in 3 milliseconds—never spawning a duplicate sandbox.
+    </p>
+
+    <h3>Stage 2 — The Safe Test Kitchen ("Reproduce Before Thinking")</h3>
+    <p>
+      For every genuinely new cluster, the orchestrator calls OpenHands’ headless API to boot an isolated, network-restricted Docker container checked out at the exact deployed <code>git_sha</code> from the log metadata. Crucially, the container receives <strong>zero production secrets</strong> and <strong>zero outbound internet access</strong>—only the code repository, synthetic test fixtures, scrubbed log payloads, and the team’s <code>.openhands/microagents/*.md</code> playbooks.
+    </p>
+    <p>
+      Rule #1 inside the sandbox is strict: <strong>the agent is forbidden from editing application code until it writes a failing unit or integration test that reproduces the exact logged failure.</strong> If the agent cannot reproduce the failure cleanly, it logs an investigation note into the Case Diary and terminates—preventing speculative edits built on faulty hypotheses.
+    </p>
+
+    <h3>Stage 3 — The Clear vs. Vague Fork &amp; Zero-Cost Hibernation</h3>
+    <p>
+      Once a failing reproduction test proves the bug is real, the agent passes through the <strong>Ambiguity Gate</strong> (detailed in Part V below). Clear deterministic defects proceed straight to patching and verification. The moment the agent detects two or more conflicting valid product behaviors—or spots a recurring user-friction pattern that looks like a missing feature—it serializes its OpenHands <code>ConversationState</code> to encrypted object storage, emits a compact clarification payload, and <strong>destroys the Docker container immediately</strong>:
+    </p>
+
+<pre><code>{
+  "case_id": "case_2026_11_28_coupon_midnight",
+  "deployed_sha": "a94f21c",
+  "reproduction_test": "tests/checkout/test_promo_boundary.py::test_midnight_utc_expiry",
+  "state_checkpoint_uri": "s3://night-shift-state/case_coupon_midnight/events.jsonl",
+  "sandbox_status": "HIBERNATED_ZERO_COST",
+  "clarification_options": [
+    {"id": "A", "label": "Clearer inline banner explaining UTC cutoff"},
+    {"id": "B", "label": "Honor 15-min grace window for active checkout carts"},
+    {"id": "C", "label": "Auto-swap to active fallback welcome promo"}
+  ]
+}</code></pre>
+
+    <h3>Stage 4 — Wake-Up, Green Verification &amp; Human-Owned Merge Key</h3>
+    <p>
+      When a human clicks Option B at 9:07 AM, the webhook triggers a fresh OpenHands worker, restores <code>events.jsonl</code> in seconds, injects the single human decision as the next event in the stream, implements the chosen behavior, verifies both the new boundary test and the full regression suite pass green, and opens a crisp GitHub pull request referencing the exact Slack/GitHub approval record. <strong>The night-shift agent never merges to <code>main</code> on its own.</strong>
+    </p>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- SECTION 4: BEYOND CRASH HOTFIXES — THREE OUTCOMES -->
+    <!-- ================================================================== -->
+    <span class="section-badge badge-cobalt">Part IV · From Self-Healing to Self-Evolving</span>
+    <h2>Beyond Crash Hotfixes: One Log Pipeline, Three Outcomes</h2>
+
+    <p>
+      Most engineering teams stop thinking at <em>self-healing</em>—patching crashes automatically. Yet once you batch and analyze structured application logs every thirty minutes, you unlock something far more valuable: <strong>a self-evolving product loop.</strong>
+    </p>
+    <p>
+      Production logs don’t only record <code>500 Internal Server Error</code> crashes. They quietly record thousands of <code>400</code> and <code>422</code> validation warnings showing exactly where real users are hitting friction against your product’s boundaries—requests that rarely make it into formal support tickets or Jira backlogs.
+    </p>
+
+    <figure class="wide-figure">
+      <img src="assets/images/visual_07_three_outcomes_pipeline.png" alt="Three-lane horizontal pipeline fed by an App Logs and Warnings funnel: Path 1 Clear Bug (Empty Profile Photo Crash -> Only 1 Obvious Fix -> Ships Verified PR Overnight), Path 2 Ambiguous Rule (Promo Fails at 12:03 AM -> 3 Valid Policy Choices -> 1-Click Ask and Ships Rule), and Path 3 Product Upgrade (180 Users Upload .TSV Files -> Spots Hidden Demand -> Asks PM and Launches TSV Support)." />
+      <figcaption>
+        <strong>Figure 7 — One Log Pipeline, Three Outcomes:</strong> Look at Path 3—when 180 users trigger validation warnings uploading <code>.TSV</code> files into a <code>.CSV</code> importer, the exact same night-shift agent turns silent friction logs into a 1-click product upgrade proposal.
+      </figcaption>
+    </figure>
+
+    <div class="table-wrap">
+      <table class="gov-table">
+        <thead>
+          <tr>
+            <th>Triage Path</th>
+            <th>Concrete Example</th>
+            <th>Signal Type</th>
+            <th>Sandbox &amp; Clarification Behavior</th>
+            <th>Final Artifact</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Path 1 · Clear Deterministic Bug</strong></td>
+            <td><code>AttributeError</code> when rendering empty optional profile photo</td>
+            <td>Unhandled <code>5xx</code> crash; single valid specification</td>
+            <td>Reproduces failing test → passes Two-Patch agreement check → finishes autonomously overnight</td>
+            <td><strong>Ready-to-Review Bug-Fix PR</strong> waiting at 9:00 AM</td>
+          </tr>
+          <tr>
+            <td><strong>Path 2 · Ambiguous Product Rule</strong></td>
+            <td>Promo code fails 3 minutes past midnight UTC for active carts</td>
+            <td><code>5xx</code> or business-rule error with multiple valid UX behaviors</td>
+            <td>Reproduces bug → Two-Patch Test diverges → <strong>hibernates at $0</strong> → sends 9 AM 3-button card</td>
+            <td><strong>Policy-Aligned PR #42</strong> + permanent Layer 5 Rulebook entry</td>
+          </tr>
+          <tr class="highlight-row">
+            <td><strong>Path 3 · Friction-to-Upgrade</strong></td>
+            <td>180 users rejected uploading <code>.TSV</code> files into <code>.CSV</code> importer</td>
+            <td>High-volume <code>4xx</code> validation warnings (no crash, real user pain!)</td>
+            <td>Clusters user demand → estimates tiny diff scope → <strong>hibernates at $0</strong> → asks PM: <em>"Add TSV support?"</em></td>
+            <td><strong>Tested Feature-Upgrade PR</strong> + unit fixtures shipped in 1 click</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout-card">
+      <strong class="kicker">The "Aha!" Moment · Turning Warning Logs Into Product Discovery</strong>
+      Engineers ignore <code>422 UnsupportedMediaType: expected .csv, got .tsv</code> because the server didn’t crash—the validation guard worked as coded! Product managers never see the raw log line. By letting the 30-minute batch collector track high-frequency validation warnings alongside crash traces, your night-shift agent hands the PM a verified insight every week: <em>"180 workspace users tried uploading tab-separated <code>.TSV</code> exports this week. Adding delimiter auto-detection touches 2 files and 18 lines—want me to build and test it?"</em>
+    </div>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- SECTION 5: ZERO PAGER FATIGUE & THE TWO-PATCH TEST -->
+    <!-- ================================================================== -->
+    <span class="section-badge badge-amber">Part V · Human-in-the-Loop Engineering</span>
+    <h2>How to Ask Humans Smart Questions Without Notification Fatigue</h2>
+
+    <p>
+      The fastest way to kill a human-in-the-loop architecture is to ping engineers on Slack at 2:15 AM—or spam a product manager with twenty vague questions every morning. Making clarification loops genuinely loved by engineering and product teams requires three disciplined UX invariants:
+    </p>
+
+    <figure class="wide-figure">
+      <img src="assets/images/visual_08_zero_pager_fatigue.png" alt="Three-step human-in-the-loop design: 01 The Two-Patch Test (robot using magnifying glass to compare Patch A and Patch B that both pass tests yet create different user behavior), 02 Calm 9 AM Digest (steaming coffee mug beside one 3-button A/B/C card while the sandbox sleeps at $0 cost), and 03 Human Keeps the Merge Key (human hand turning a green MERGE key beside checked Tests and Code)." />
+      <figcaption>
+        <strong>Figure 8 — Zero 2 AM Pager Fatigue:</strong> Never ask an LLM "are you confident?" Detect ambiguity objectively via the Two-Patch Test, batch questions into one calm 9:00 AM coffee digest while containers sleep at $0, and always leave the final Merge Key in human hands.
+      </figcaption>
+    </figure>
+
+    <h3>1. Objective Ambiguity Detection: The Two-Patch Test</h3>
+    <p>
+      Asking a language model <em>"On a scale of 1 to 10, how sure are you about this fix?"</em> fails in practice—models routinely report 95% confidence while hallucinating a product policy. Instead, borrow the clever differential trick demonstrated in <strong>ClarifyGPT</strong> and <strong>CONTRA</strong>:
+    </p>
+    <ol>
+      <li>Inside the sandbox, after the failing reproduction test is locked in, ask the agent to synthesize <strong>two candidate fixes independently</strong> (using distinct reasoning framings or slight sampling diversity) that both make the failing test and existing suite pass.</li>
+      <li>Generate a small set of boundary inputs around the failure and run <strong>Patch A</strong> and <strong>Patch B</strong> side by side.</li>
+      <li><strong>If both patches produce identical outputs across all boundary inputs:</strong> the fix is behaviorally unambiguous (Path 1) — open the PR directly!</li>
+      <li><strong>If Patch A and Patch B both pass tests yet return different user-visible outputs</strong> (for instance, returning HTTP <code>400</code> with a clearer banner vs. honoring a 15-minute grace window): you have <em>provable behavioral ambiguity</em> — and those exact behavioral differences become Buttons <strong>A</strong> and <strong>B</strong> on the morning card!</li>
+    </ol>
+
+<pre><code># Simplified Two-Patch Ambiguity Gate (inspired by ClarifyGPT / CONTRA)
+def evaluate_ambiguity(sandbox, failing_test, boundary_inputs):
+    patch_a = sandbox.propose_verified_patch(strategy="strict_validation")
+    patch_b = sandbox.propose_verified_patch(strategy="graceful_ux_fallback")
+
+    outputs_a = sandbox.run_probe_inputs(patch_a, boundary_inputs)
+    outputs_b = sandbox.run_probe_inputs(patch_b, boundary_inputs)
+
+    if outputs_a == outputs_b:
+        return Decision(mode="CLEAR_BUG", winning_patch=patch_a)
+
+    # Provable behavioral divergence -> summarize concrete differences as A / B / C!
+    return Decision(
+        mode="HIBERNATE_AND_ASK",
+        options=summarize_behavior_diff(outputs_a, outputs_b),
+    )</code></pre>
+
+    <h3>2. One Calm 9:00 AM Coffee Digest (Capped at Top 5 Items)</h3>
+    <p>
+      Unless a critical <code>P0</code> outage is actively firing (which belongs to your existing on-call pager, never a night-shift PR bot), overnight clarifications wait silently until <strong>9:00 AM local team time</strong>. Every question arrives as one crisp, scannable card ranked by affected user count—never an open-ended essay prompt:
+    </p>
+
+    <div class="slack-card">
+      <div class="slack-header">
+        <span>Morning Night-Shift Digest · 1 Ambiguous Rule Found Overnight</span>
+        <span class="slack-meta">Sandbox Sleeping · $0.00/hr</span>
+      </div>
+      <div>
+        <strong>Incident:</strong> <code>CouponExpiredError</code> on <code>POST /checkout/apply-promo</code> (<strong>187 shoppers affected</strong> between 00:00–00:14 UTC).<br />
+        <strong>Verified Root Cause:</strong> Reproduced in <code>test_midnight_utc_expiry</code> at commit <code>a94f21c</code>. Two valid patches pass CI but change shopper UX. Which rule should we ship and save to the Rulebook?
+      </div>
+      <div class="slack-buttons">
+        <span class="slack-btn">A · Clearer Expiry Banner</span>
+        <span class="slack-btn primary">B · 15-Min Cart Grace Window ✓</span>
+        <span class="slack-btn">C · Auto-Swap Fallback Promo</span>
+        <span class="slack-btn">Skip / Snooze 7d</span>
+      </div>
+    </div>
+
+    <h3>3. The Human Always Keeps the Merge Key</h3>
+    <p>
+      Clicking Option B authorizes the agent to wake up, write the code and boundary tests, and open a clean pull request—not to deploy directly to production. Keeping a human reviewer on the final GitHub Merge button gives engineering teams complete confidence to turn the night shift on across real services from week one.
+    </p>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- SECTION 6: CLOSING THE LOOP WITH PART 1'S 6 MEMORY LAYERS -->
+    <!-- ================================================================== -->
+    <span class="section-badge badge-teal">Part VI · The Memory + Self-Healing Flywheel</span>
+    <h2>Plugging Self-Healing Directly Into Our 6 Memory Layers</h2>
+
+    <p>
+      Here is where Part 1 and Part 2 snap together into a compounding system. A standalone coding agent has goldfish memory: ask it about a midnight coupon issue this Tuesday, and if a similar promo bug fires next month on a sibling checkout endpoint, it will wake up and ask your product manager the exact same question all over again.
+    </p>
+    <p>
+      Wiring our night-shift coding agent directly into <strong>Layers 4, 5, and 6</strong> from <a href="../">Part 1</a> closes the feedback loop completely:
+    </p>
+
+    <figure class="wide-figure">
+      <img src="assets/images/visual_09_six_memory_layers_flywheel.png" alt="Connected continuous-learning flywheel linking Self-Healing to the 6 Memory Layers: Left column Before Writing Code reads Layer 4 Living Case Diary (checks open PRs and past fixes) and Layer 6 Tested Playbooks (loads coding standards and safety guardrails); Right column After Human Clarifies writes to Layer 5 Date-Stamped Rulebook (saves 15-min grace rule forever so it never asks twice) and Layer 6 Upgraded Playbook (adds a new guardrail for future night shifts)." />
+      <figcaption>
+        <strong>Figure 9 — Closing the 6-Layer Memory Flywheel:</strong> Every night-shift run reads Layer 4 and Layer 6 before writing a line of code—and every human clarification compounds permanently into Layer 5’s bi-temporal Rulebook and Layer 6’s sandbox-tested Playbooks.
+      </figcaption>
+    </figure>
+
+    <ul>
+      <li><strong>Before Coding — Read Layer 4 (Living Case Diary):</strong> One canonical keyed record per stack fingerprint prevents duplicate containers and shows the agent whether a closely related fix was recently merged or rolled back.</li>
+      <li><strong>Before Coding — Read Layer 6 (Tested Playbooks / <code>.openhands/microagents/*.md</code>):</strong> Loads house coding conventions, forbidden patterns (such as <em>"never silence checkout exceptions with bare try/except"</em>), and test-fixture locations straight into the OpenHands sandbox.</li>
+      <li><strong>After Clarification &amp; Merge — Write Layer 5 (Bi-Temporal Semantic Rulebook):</strong> The moment PR #42 merges, an atomic bi-temporal transaction records the approved policy (<code>promo_midnight_grace_minutes = 15</code>, <code>valid_from = 2026-11-28</code>, <code>valid_to = NULL</code>). The next time any billing or checkout agent touches promo expiration—daytime assistant <em>or</em> night-shift mechanic—it already knows the official product rule and never asks twice!</li>
+      <li><strong>After Merge — Propose Layer 6 Playbook Upgrade:</strong> Recurring fixes graduate offline into versioned microagent rules (<code>playbook-v2.5</code>), validated against historical regression suites before promotion behind a 1-second rollback pointer.</li>
+    </ul>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- SECTION 7: END-TO-END TIMESTAMPED TRACE -->
+    <!-- ================================================================== -->
+    <span class="section-badge badge-amber">End-to-End Walkthrough · Midnight to 9:12 AM</span>
+    <h2>Tracing One Night Shift Minute-by-Minute (Two Real Signals, Zero Pager Noise)</h2>
+
+    <p>
+      To see how every component cooperates without race conditions, runaway bills, or 2 AM alerts, trace one real overnight window across our SaaS workspace app:
+    </p>
+
+    <ul>
+      <li><strong>00:03:11 UTC — Production Signals Accumulate Quietly:</strong> Between 00:00 and 00:14 UTC, <strong>187 shoppers</strong> hit <code>CouponExpiredError</code> on checkout. Meanwhile, across Asia-Pacific morning hours, <strong>180 users</strong> trigger <code>422 UnsupportedMediaType</code> warnings trying to upload <code>.TSV</code> files into the workspace <code>.CSV</code> importer. Zero engineers are paged.</li>
+      <li><strong>00:30:00 UTC — 30-Minute Batch Collector Fires:</strong> The collector normalizes all 367 raw log lines into exactly <strong>2 canonical fingerprints</strong>. A 3-millisecond lookup against <strong>Layer 4 (Living Case Diary)</strong> confirms neither fingerprint has an open PR or pending clarification card.</li>
+      <li><strong>00:31:05 UTC — Safe Test Kitchen Boots:</strong> Two headless OpenHands Docker containers spin up at exact deployed commit <code>a94f21c</code>, mounting repo-local <strong>Layer 6 Playbooks</strong> with zero production secrets and zero outbound internet access.</li>
+      <li><strong>00:33:40 UTC — Reproduction + Two-Patch Gate:</strong> Container #1 writes failing test <code>test_midnight_utc_expiry</code>, then runs the Two-Patch Test—proving that <em>strict expiry banner</em> and <em>15-minute grace window</em> both pass existing CI yet diverge on user behavior. Container #2 confirms <code>.TSV</code> auto-detection is a clean 18-line importer enhancement.</li>
+      <li><strong>00:34:15 UTC — Zero-Cost Hibernation:</strong> Both sandboxes serialize their append-only <code>CodeAct</code> Event Streams to object storage, mark Layer 4 status as <code>WAITING_CLARIFICATION</code>, and destroy their containers completely (<strong>$0.00/hr</strong> while everyone sleeps).</li>
+      <li><strong>09:00:00 UTC — Calm Morning Digest Lands in Slack:</strong> One tidy card presents the 2 highest-impact overnight items—ranked by affected users—with 1-click decision buttons.</li>
+      <li><strong>09:07:42 UTC — Two Clicks Over Morning Coffee:</strong> The PM clicks <strong>Option B (15-Min Grace Window)</strong> on checkout and <strong>Approve TSV Support</strong> on the importer.</li>
+      <li><strong>09:10:15 UTC — Resume, Verify &amp; Open Green PRs:</strong> Fresh OpenHands workers rehydrate both event streams, write the approved logic plus boundary unit tests, pass full CI green, and open <strong>PR #42</strong> (Grace Window) and <strong>PR #43</strong> (TSV Auto-Detection).</li>
+      <li><strong>09:12:00 UTC — Human Turns the Merge Key &amp; Memory Compounds:</strong> An engineer reviews the concise diffs and merges both PRs. Layer 4 updates both cases in place to <code>RESOLVED</code>; Layer 5 atomically stamps the 15-minute grace rule as active from today; Layer 6 queues a new microagent check ensuring future promo endpoints always respect the active grace rule.</li>
+    </ul>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- SECTION 8: PRODUCTION ENGINEERING CHECKLIST -->
+    <!-- ================================================================== -->
+    <span class="section-badge badge-coral">Part VII · Production Hardening</span>
+    <h2>Production Engineering Checklist: Guardrails, Failure Modes &amp; 90-Day Rollout</h2>
+
+    <p>
+      Shipping a self-healing loop into a real codebase requires treating autonomous coding sandboxes with the same operational discipline as production deployment pipelines. Build these budgets, invariants, and dashboards in from day one.
+    </p>
+
+    <div class="callout-card cobalt">
+      <strong class="kicker">Target Compute, Latency &amp; Attention Budgets</strong>
+      <ul>
+        <li><strong>Batch Collection Cadence:</strong> 30-minute rolling windows with fingerprint grouping; maximum <strong>3 concurrent Docker sandboxes</strong> per repository so traffic spikes never multiply cloud bills.</li>
+        <li><strong>Per-Case Sandbox Cap:</strong> Hard 8-minute wall-clock timeout and strict token ceiling per OpenHands container before graceful checkpointing or abort.</li>
+        <li><strong>Zero-Cost Hibernation Window:</strong> Destroy idle containers immediately upon emitting a clarification card; auto-expire unanswered hibernated checkpoints after <strong>72 hours</strong>.</li>
+        <li><strong>Human Attention Budget:</strong> Maximum <strong>1 morning digest per channel per day</strong>, hard-capped at the <strong>top 5 highest-impact cases</strong> ranked by affected users.</li>
+      </ul>
+    </div>
+
+    <div class="callout-card coral">
+      <strong class="kicker">Five Production Failure Modes — And the Invariant That Stops Each One</strong>
+      <ul>
+        <li><strong>1. Silent Band-Aid Fixes Masking Real UX Bugs:</strong> Prevented by forbidding edits before a failing reproduction test exists, paired with the Two-Patch behavioral divergence gate and a Layer 6 rule blocking bare exception swallowing.</li>
+        <li><strong>2. Container Storms During Outage Spikes:</strong> Prevented by 30-minute stack-trace fingerprinting, Layer 4 dedup checks, circuit-breaker pausing when 5XX rates exceed 5%, and a hard per-repo container concurrency cap.</li>
+        <li><strong>3. Prompt Injection Hidden Inside User-Controlled Log Fields:</strong> Prevented by scrubbing/redacting free-form user strings before log ingestion, wrapping log excerpts as untrusted data blocks, and running OpenHands containers with <strong>zero production credentials</strong> and <strong>zero egress network access</strong>.</li>
+        <li><strong>4. Duplicate PR Spam &amp; Stale Merge Conflicts:</strong> Prevented by canonical <code>fingerprint_hash</code> upserts in Layer 4 (never opening a second PR while one is active) and rebasing onto latest <code>main</code> cleanly before pushing a woken-up branch.</li>
+        <li><strong>5. Clarification Fatigue &amp; Asking the Same Question Twice:</strong> Prevented by capping daily digests at 5 cards and committing every resolved human choice atomically into Layer 5’s Date-Stamped Rulebook so future agents consult memory before asking.</li>
+      </ul>
+    </div>
+
+    <div class="callout-card">
+      <strong class="kicker">Five Health Metrics Every Platform Team Should Track on Day 1</strong>
+      <ul>
+        <li><strong>First-Pass PR Merge Rate:</strong> Percentage of night-shift pull requests merged with minimal or zero manual rework (healthy target: &gt;75% on Path 1 bugs; &gt;85% after clarification).</li>
+        <li><strong>Container Deduplication Ratio:</strong> Share of raw error/warning log lines collapsed before spinning up a sandbox (target: &gt;98%).</li>
+        <li><strong>Ambiguity Catch Precision:</strong> Share of morning clarification cards where humans confirm a real product decision was needed (rather than clicking "obvious bug").</li>
+        <li><strong>Repeat-Question Rate:</strong> Percentage of clarification cards asking a policy question already answered previously (target: trending cleanly toward <strong>0%</strong> as Layer 5 fills!).</li>
+        <li><strong>Friction-to-Feature Conversion Rate:</strong> Number of Path 3 warning-log proposals approved by PMs and shipped into production each month—the ultimate metric that your app is truly <em>self-evolving</em>.</li>
+      </ul>
+    </div>
+
+    <div class="callout-card amber">
+      <strong class="kicker">Pragmatic 90-Day Rollout Roadmap (Earn Trust Step by Step)</strong>
+      <strong>Phase 1 (Days 1–30 · Shadow Reproduction Only):</strong> Wire the 30-minute fingerprint batcher and headless OpenHands sandbox to reproduce bugs and post internal diagnostic summaries—no PRs opened yet. Measure reproduction rate and container cost.<br />
+      <strong>Phase 2 (Days 31–60 · Path 1 Fixes + 9 AM Clarification Cards):</strong> Turn on Path 1 draft PRs for unambiguous bugs, activate the Two-Patch Test with $0 hibernation + 9:00 AM Slack/GitHub cards, and connect read/write sync with Part 1’s Layers 4 and 5.<br />
+      <strong>Phase 3 (Days 61–90 · Self-Evolving Friction Loops + Layer 6 Playbooks):</strong> Add high-frequency <code>4xx</code> user-friction clustering (Path 3 product upgrades) and graduate recurring night-shift lessons into sandbox-verified Layer 6 microagent playbooks.
+    </div>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- SECTION 9: FINAL TAKEAWAY & THREE GOLDEN RULES -->
+    <!-- ================================================================== -->
+    <span class="section-badge badge-teal">Part VIII · The Final Takeaway</span>
+    <h2>The Final Takeaway: Three Golden Rules of Self-Healing Apps</h2>
+
+    <figure class="wide-figure">
+      <img src="assets/images/visual_10_final_takeaway_rules.png" alt="Closing takeaway poster: Left column shows How the Night Shift Decides (1. Reproduce Safely in Sandbox -> 2. Pause and Ask on Vague Rules via 9 AM 1-Click Card -> 3. Human Reviews and Merges); Right column shows Three Golden Rules (Rule 1: Never Guess Product Rules, Rule 2: Batch Logs and Sleep at $0, Rule 3: Write Answers Back to Memory)." />
+      <figcaption>
+        <strong>Figure 10 — The Night-Shift Decision Ladder &amp; Three Golden Rules:</strong> Great autonomous engineering agents aren’t the ones that guess fastest at 2 AM—they are the ones that prove every bug safely, pause cheaply when product intent is ambiguous, and remember every human decision forever.
+      </figcaption>
+    </figure>
+
+    <div class="takeaway-box">
+      <h3>The Principal Architect’s Bottom Line — Three Golden Rules</h3>
+      <ol>
+        <li><strong>Never guess product rules from stack traces.</strong> Require a failing reproduction test first, then run the Two-Patch Test—whenever two valid fixes create different user behavior, pause and hand the team crisp A/B/C buttons at 9:00 AM.</li>
+        <li><strong>Batch noisy logs and sleep at $0 compute cost.</strong> 30-minute fingerprint windows plus Layer 4 Case Diary checks cut 98.5% of sandbox waste, while OpenHands Event Stream hibernation lets containers shut down cleanly until a human clicks.</li>
+        <li><strong>Write every human answer back to memory.</strong> Closing the loop into Part 1’s Date-Stamped Rulebook (Layer 5) and Tested Playbooks (Layer 6) ensures your night-shift mechanic compounds intelligence—healing crashes faster and spotting hidden product upgrades without ever asking the same question twice.</li>
+      </ol>
+    </div>
+
+    <p>
+      Put Part 1 and Part 2 together, and the entire shape of modern software changes. By day, live state-transition streams keep your user-facing agent grounded in reality across six governed memory layers. By night, a calm batch coding agent turns production crashes into verified pull requests, asks thoughtful morning questions when business rules diverge, and turns silent user-friction logs into tomorrow’s roadmap.
+    </p>
+    <p>
+      The goal was never to take humans out of software engineering. It is to stop wasting human judgment on 2 AM noise—so one clear click over morning coffee ships safer code, smarter memory, and a product that genuinely learns from its users.
+    </p>
+
+    <div class="references">
+      <h3>Key Research &amp; Systems References (2024–2026)</h3>
+      <ul>
+        <li><strong>OpenHands (formerly OpenDevin):</strong> X. Wang et al., <em>OpenHands: An Open Platform for AI Software Developers as Generalist Agents</em> (ICLR 2025, <a href="https://arxiv.org/abs/2407.16741">arXiv:2407.16741</a>) &amp; <em>The OpenHands Software Agent SDK</em> (<a href="https://arxiv.org/abs/2511.03690">arXiv:2511.03690</a>).</li>
+        <li><strong>Ambiguity &amp; Interactive Clarification Benchmarks:</strong> <em>Ambig-SWE</em>, <em>SWE-DIVE</em>, <em>ClarifyGPT</em> (Mu et al., FSE 2024 — differential patch ambiguity detection), and <em>CONTRA</em> (2025–2026 studies showing +74% relative resolution lift from targeted clarification on underspecified software tasks).</li>
+        <li><strong>Industry Observability &amp; Background Agent Landscape:</strong> Sentry Seer &amp; Autofix, Datadog Bits AI Dev Agent, Resolve AI, GitHub Copilot Coding Agent, and Google Jules.</li>
+        <li><strong>Series Part 1:</strong> <a href="../"><em>Memory Is Not Storage — It Is Lifecycle Governance: The 6 Layers of Agentic Memory</em></a> (companion architecture for Layers 1–6 and silent state-transition streams).</li>
+      </ul>
+    </div>
+
+    <div class="tags">
+      <span class="tag">Self-Healing Systems</span>
+      <span class="tag">AI Agents</span>
+      <span class="tag">OpenHands</span>
+      <span class="tag">Software Architecture</span>
+      <span class="tag">Agentic Memory</span>
+    </div>
+  </article>
+
+</body>
+</html>
