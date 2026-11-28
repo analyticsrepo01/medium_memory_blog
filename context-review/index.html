@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Paper Review: Letting Models Manage Their Own Context (NVIDIA, arXiv:2611.34147v1)</title>
+  <meta name="description" content="A detailed, visual Principal-Architect review of NVIDIA's paper 'Letting Models Manage Their Own Context: Where We Stand' — covering NOOA's context API, tight-budget gains, Context Anxiety, and Suffix KV Cache Reuse." />
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="Paper Review: Letting Models Manage Their Own Context — Where We Stand" />
+  <meta property="og:description" content="Why handing context control to AI models nearly triples tight-budget accuracy, why some models suffer from Context Anxiety, and why serving engines must evolve beyond prefix caching." />
+  <meta property="og:image" content="https://analyticsrepo01.github.io/medium_memory_blog/context-review/assets/images/visual_01_harness_vs_model_hook.png" />
+  <style>
+    :root {
+      --bg: #ffffff;
+      --paper: #faf9f6;
+      --ink: #191919;
+      --sub: #575757;
+      --border: #e6e6e6;
+      --code-bg: #0f172a;
+      --code-ink: #e2e8f0;
+      --accent: #1d4ed8;
+      --teal: #0d9488;
+      --amber: #b45309;
+      --rose: #be123c;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+      font-size: 20.5px;
+      line-height: 1.72;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .topbar {
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      color: var(--sub);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.96);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(8px);
+    }
+
+    .topbar strong {
+      color: var(--ink);
+    }
+
+    .pill {
+      display: inline-block;
+      background: #eff6ff;
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 12px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+    }
+
+    article {
+      max-width: 740px;
+      margin: 0 auto;
+      padding: 48px 24px 96px;
+    }
+
+    header.article-header {
+      margin-bottom: 36px;
+    }
+
+    h1 {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 42px;
+      line-height: 1.15;
+      letter-spacing: -0.028em;
+      font-weight: 800;
+      margin: 14px 0 18px;
+      color: #111827;
+    }
+
+    .subtitle {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 21px;
+      line-height: 1.48;
+      color: var(--sub);
+      font-weight: 400;
+      margin: 0 0 26px;
+    }
+
+    .byline {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      color: var(--sub);
+    }
+
+    .avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #0d9488, #1d4ed8);
+      color: #fff;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    h2 {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 30px;
+      line-height: 1.24;
+      letter-spacing: -0.02em;
+      font-weight: 800;
+      margin: 58px 0 18px;
+      color: #111827;
+    }
+
+    h3 {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 22px;
+      line-height: 1.3;
+      letter-spacing: -0.015em;
+      font-weight: 700;
+      margin: 34px 0 14px;
+      color: #0f172a;
+    }
+
+    .section-badge {
+      display: inline-block;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+
+    .badge-teal { background: #ccfbf1; color: #0f766e; }
+    .badge-cobalt { background: #dbeafe; color: #1d4ed8; }
+    .badge-amber { background: #fef3c7; color: #92400e; }
+    .badge-coral { background: #ffe4e6; color: #be123c; }
+
+    p {
+      margin: 0 0 24px;
+    }
+
+    ul, ol {
+      margin: 0 0 26px;
+      padding-left: 26px;
+    }
+
+    li {
+      margin-bottom: 12px;
+    }
+
+    figure.wide-figure {
+      width: min(980px, calc(100vw - 36px));
+      margin: 28px 50% 34px;
+      transform: translateX(-50%);
+      background: var(--paper);
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 14px 14px 12px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    figure.wide-figure img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 8px;
+    }
+
+    figcaption {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--sub);
+      text-align: center;
+      margin-top: 12px;
+      padding: 0 12px;
+    }
+
+    blockquote {
+      margin: 34px 0;
+      padding: 4px 0 4px 22px;
+      border-left: 4px solid var(--accent);
+      font-style: italic;
+      font-size: 22.5px;
+      line-height: 1.54;
+      color: #1e293b;
+    }
+
+    .callout-card {
+      background: var(--paper);
+      border: 1px solid #e2e8f0;
+      border-left: 4px solid var(--teal);
+      border-radius: 10px;
+      padding: 18px 22px;
+      margin: 22px 0 28px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      font-size: 15.5px;
+      line-height: 1.62;
+      color: #1e293b;
+    }
+
+    .callout-card.cobalt { border-left-color: var(--accent); }
+    .callout-card.amber { border-left-color: var(--amber); background: #fffbeb; border-color: #fde68a; }
+    .callout-card.coral { border-left-color: var(--rose); background: #fff1f2; border-color: #fecdd3; }
+
+    .callout-card strong.kicker {
+      display: block;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--teal);
+      margin-bottom: 6px;
+    }
+
+    .callout-card.cobalt strong.kicker { color: var(--accent); }
+    .callout-card.amber strong.kicker { color: var(--amber); }
+    .callout-card.coral strong.kicker { color: var(--rose); }
+
+    .takeaway-box {
+      background: #0f172a;
+      color: #f8fafc;
+      border-radius: 14px;
+      padding: 28px 30px;
+      margin: 34px 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
+    }
+
+    .takeaway-box h3 {
+      margin: 0 0 16px;
+      font-size: 20px;
+      color: #fbbf24;
+      letter-spacing: -0.01em;
+    }
+
+    .takeaway-box ol {
+      margin: 0;
+      padding-left: 22px;
+      font-size: 16px;
+      line-height: 1.65;
+    }
+
+    .takeaway-box li {
+      margin-bottom: 12px;
+    }
+
+    code {
+      font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.83em;
+      background: #f1f5f9;
+      color: #0f172a;
+      padding: 2px 6px;
+      border-radius: 5px;
+    }
+
+    pre {
+      background: var(--code-bg);
+      color: var(--code-ink);
+      padding: 18px 22px;
+      border-radius: 12px;
+      overflow-x: auto;
+      margin: 22px 0 28px;
+      line-height: 1.54;
+      font-size: 14px;
+    }
+
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+    }
+
+    hr.section-dots {
+      border: 0;
+      text-align: center;
+      margin: 54px 0;
+    }
+
+    hr.section-dots::before {
+      content: "•   •   •";
+      color: #94a3b8;
+      font-size: 20px;
+      letter-spacing: 6px;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+    }
+
+    .tag {
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 13px;
+      padding: 6px 14px;
+      border-radius: 999px;
+    }
+
+    @media (max-width: 768px) {
+      h1 { font-size: 31px; }
+      .subtitle { font-size: 18px; }
+      body { font-size: 18.5px; }
+      figure.wide-figure {
+        width: 100%;
+        margin: 24px 0;
+        transform: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div><strong>Research Paper Review · Agentic AI Systems</strong></div>
+    <div>14 min read · 8 Illustrated Figures &amp; Charts</div>
+  </div>
+
+  <article>
+    <header class="article-header">
+      <span class="pill">Deep Paper Review · arXiv:2611.34147v1</span>
+      <h1>Letting Models Manage Their Own Context: A Deep Review of NVIDIA’s New NOOA Study</h1>
+      <p class="subtitle">
+        Handing context compaction directly to frontier models nearly triples tight-budget accuracy — yet also exposes bizarre model personalities, "Context Anxiety," and a hidden serving-engine cache trap. Here is what NVIDIA’s November 2026 study actually proves (and where the hard open problems remain).
+      </p>
+      <div class="byline">
+        <div class="avatar">PR</div>
+        <div>
+          <div style="color:#111827; font-weight:600;">Agentic Systems &amp; Research Review</div>
+          <div>Reviewing Devoto et al. (NVIDIA, Nov 25, 2026) · <a href="https://arxiv.org/html/2611.34147v1" style="color:#1d4ed8;">Read Original Paper</a></div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ================================================================== -->
+    <!-- PAPER SNAPSHOT & EXECUTIVE VERDICT -->
+    <!-- ================================================================== -->
+    <div class="callout-card cobalt">
+      <strong class="kicker">Paper At A Glance</strong>
+      <strong>Title:</strong> <em>Letting Models Manage Their Own Context: Where We Stand</em> (<a href="https://arxiv.org/html/2611.34147v1" style="color:#1d4ed8;">arXiv:2611.34147v1</a>, Nov 25, 2026)<br />
+      <strong>Authors:</strong> Alessio Devoto, Avinash Vem, Tara Safavi, Sanjay Kariyappa, Yu-Hsuan Tseng, Paul Furgale, and Ricardo Silveira Cabral (NVIDIA)<br />
+      <strong>Core Question:</strong> Instead of an agent harness blindly summarizing history when a window hits 80% full, what happens when we give the model a clean API to edit its own context — and what happens down inside the inference engine when it does?<br />
+      <strong>Reviewer Verdict:</strong> <strong>Must-read empirical benchmark for agent builders.</strong> Rare in 2026 because it refuses to cherry-pick a single model, uncovers counterintuitive failure modes like <em>Context Anxiety</em>, and bridges high-level agent ergonomics all the way down to SGLang attention-cache physics.
+    </div>
+
+    <p>
+      Every engineer building long-running AI agents eventually collides with the same silent enemy: <strong>context rot</strong>. As an agent searches documents, runs code, reads stack traces, and inspects tool outputs over dozens of turns, its prompt balloons. Long before you hit a hard token ceiling, signal gets buried under old tool dumps and reasoning quality quietly degrades.
+    </p>
+    <p>
+      Today’s default solution across almost every agent framework is what NVIDIA’s authors call <strong>harness-driven context management</strong>. When token usage crosses a fixed threshold (say, 80% of the window), the surrounding harness pauses the agent, asks a model to summarize the older portion of the history, keeps the initial instructions plus the most recent 10 events verbatim, and resumes.
+    </p>
+    <p>
+      It is dead simple. It is also fundamentally blind. A rigid threshold heuristic has no idea whether event #4 contains a crucial regulatory footnote that solves the entire task while events #12 through #18 are dead-end terminal logs.
+    </p>
+    <p>
+      In <em>Letting Models Manage Their Own Context: Where We Stand</em>, NVIDIA’s team tests the obvious next step inside <strong>NOOA</strong> (their open-source Python agent harness): give frontier models a live context meter and a reversible Python API so the model itself chooses <em>when</em> and <em>what</em> to compact—and then measure both task performance and GPU serving economics across four frontier models.
+    </p>
+
+    <blockquote>
+      The big revelation of this paper isn’t simply "models can edit their own context." It is that giving models edit control turns context management into a three-way co-design problem across the model, the harness, and the serving engine.
+    </blockquote>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- SECTION 1: THE MECHANISM (HARNESS-DRIVEN VS MODEL-DRIVEN) -->
+    <!-- ================================================================== -->
+    <span class="section-badge badge-cobalt">1. The Architectural Shift</span>
+    <h2>From Blind Harness Scissors to Reversible Self-Editing</h2>
+
+    <figure class="wide-figure">
+      <img src="assets/images/visual_01_harness_vs_model_hook.png" alt="Split comparison contrasting Harness-Driven Compaction (a rigid 80% alarm forcing blunt summarization of early history) against Model-Driven Context Control (an agent watching an 85% gauge, selectively collapsing noisy middle events 3 to 9 while archiving originals)." />
+      <figcaption>
+        <strong>Figure 1 — Harness-Driven vs. Model-Driven Context Control:</strong> Today’s harnesses cut blindly on a fixed utilization alarm. Model-driven harnesses let the agent surgically compress noisy middle segments while keeping high-value early clues intact.
+      </figcaption>
+    </figure>
+
+    <p>
+      One of the cleanest engineering decisions in the paper is how deliberately minimal NOOA’s context interface is. Rather than inventing a complex memory query language, the authors expose just <strong>two Python operations</strong> alongside a live context-usage indicator and a context-pressure warning:
+    </p>
+
+<pre><code># 1. Collapse a noisy middle range of events into a crisp summary; returns tag "3..17"
+summary_tag = self.events.collapse(
+    "3", "17",
+    summary_text="Explored the repo layout; unit tests live in tests/unit."
+)
+
+# 2. Non-destructive archive: originals are never deleted — reopen any event by tag!
+original_event = self.events["9"]</code></pre>
+
+    <figure class="wide-figure">
+      <img src="assets/images/visual_02_nooa_collapse_archive_flow.png" alt="Three-step flow illustrating NOOA's model-driven context loop: 01 Watch Live Meter at 85%, 02 Collapse Noisy Middle range 3..17 into a compact summary, 03 Non-Destructive Archive allowing instant lookup of original Tag #9 whenever needed." />
+      <figcaption>
+        <strong>Figure 2 — Why Non-Destructive Archiving Matters:</strong> Because collapsed events remain retrievable by original tag (<code>self.events["9"]</code>), models can prune boldly without permanently burning bridges.
+      </figcaption>
+    </figure>
+
+    <p>
+      Notice how subtle and important that second line is. Traditional harness compaction is <strong>lossy and one-way</strong>: once a summary replaces raw tool output, any dropped figure is gone forever. Making compaction <strong>reversible by tag</strong> fundamentally changes the risk calculus for an agent—and as we will see in Section 3, the highest-scoring model takes full advantage of reopening archived events!
+    </p>
+
+    <h3>How the Authors Stress-Tested Both Strategies</h3>
+    <p>
+      To avoid cherry-picking toy scenarios, the team ran head-to-head sweeps across <strong>context budgets from 8K up to 512K tokens</strong> (each budget enforced as a hard ceiling; if a request overflows, a fallback drops oldest events and three failures mark the task wrong) on two contrasting benchmarks:
+    </p>
+    <ul>
+      <li><strong>OfficeQA Pro v2 (90 enterprise research questions):</strong> Deep document lookup over U.S. federal receipts and expenditures. Reading long pre-parsed tables fills the window rapidly, creating intense <em>context pressure</em> (the ratio of evidence needed to available window size).</li>
+      <li><strong>MLE-bench Lite (22 Kaggle machine learning competitions):</strong> Dataset inspection, coding, debugging, and iterative submissions—real software-engineering loops, but naturally much lighter on raw context volume.</li>
+    </ul>
+    <p>
+      They evaluated four frontier models under identical APIs and instructions (including a default rule telling the model to consider compacting once usage reaches <strong>85%</strong>): <strong>GPT-6.1 Sol</strong>, <strong>Kimi K3</strong>, <strong>DeepSeek V4 Pro</strong>, and <strong>Claude Opus 5.5</strong>.
+    </p>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- SECTION 2: FINDING 1 — THE TIGHT-BUDGET PAYOFF -->
+    <!-- ================================================================== -->
+    <span class="section-badge badge-teal">2. The Payoff</span>
+    <h2>Tight Budgets Unlock Massive Gains — When Models Actually Use the Tool</h2>
+
+    <figure class="wide-figure">
+      <img src="assets/charts/chart_01_tight_budget_breakthrough.png" alt="Two-panel chart showing (A) OfficeQA Pro v2 accuracy at 32K context budget where GPT-6.1 Sol jumps from 21% to 56% and Kimi K3 improves 41% to 43% with 41% fewer input tokens while Opus 5.5 drops 61% to 45%, and (B) Context API adoption rates across models: DeepSeek 53%, Kimi 45%, GPT 42%, Opus 4%." />
+      <figcaption>
+        <strong>Figure 3 — Headline Benchmark Numbers (Data from Paper Figures 3, 5 &amp; 9):</strong> At a tight 32K budget on OfficeQA Pro v2, model-driven editing nearly triples GPT-6.1 Sol’s score (21% → 56%) and lets Kimi K3 beat the harness with 41% fewer cumulative input tokens—while Claude Opus 5.5 trails simply because it uses the API in only 4% of tasks.
+      </figcaption>
+    </figure>
+
+    <p>
+      The headline numbers on <strong>OfficeQA Pro v2</strong> are striking—and refreshingly nuanced:
+    </p>
+    <ul>
+      <li><strong>GPT-6.1 Sol nearly triples its score at 32K (21% → 56%):</strong> Under heavy document pressure, blind 80% harness compaction shreds critical federal tables at the worst possible moment. Letting GPT-6.1 Sol curate its own workspace raises pass rate by <strong>+35 percentage points</strong>—and keeps it ahead at 16K and 64K before both strategies converge at 128K–512K.</li>
+      <li><strong>Kimi K3 pushes the efficiency frontier:</strong> At 32K, Kimi nudges accuracy up (<strong>43% vs. 41%</strong>) while processing <strong>41% fewer cumulative input tokens</strong> (36M vs. 62M across the run). At 64K, it wins on both axes cleanly—scoring <strong>57% vs. 52%</strong> with <strong>11% fewer cumulative tokens</strong>.</li>
+      <li><strong>The tight-budget rule holds on MLE-bench Lite too:</strong> Because Kaggle coding scripts occupy far less context than huge financial reports, harness-driven and model-driven lines track closely across most budgets, showing gains mainly at the tightest 8K–16K ceilings.</li>
+      <li><strong>Claude Opus 5.5 reveals the catch:</strong> At 16K and 32K on OfficeQA Pro v2, model-driven Opus 5.5 actually scores <em>worse</em> than harness compaction (~20% vs. ~45% at 16K; ~45% vs. ~61% at 32K). Why? Panel B explains it in one glance: <strong>Opus 5.5 calls the context API in only 4% of tasks</strong>, compared with 42%–53% for GPT, Kimi, and DeepSeek. When the harness steps back and the model refuses to step up, the window simply slams into the hard ceiling.</li>
+    </ul>
+
+    <div class="callout-card">
+      <strong class="kicker">Architect’s Insight · Why Tight-Budget Wins Matter Even in a 1M-Token World</strong>
+      Skeptics often ask: <em>"If frontier windows reach 512K or 1M tokens, why care about 32K wins?"</em> Because shrinking the budget is a mathematically faithful proxy for <strong>context pressure</strong>. A 10-minute document lookup inside a 32K window experiences the exact same pressure ratio as a 6-hour autonomous engineering or enterprise research workflow inside a 512K window. Whenever real work outgrows the window—or latency/cost caps your effective budget—intelligent pruning beats raw window size.
+    </div>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- SECTION 3: FINDING 2 — FOUR WILDLY DIFFERENT MODEL PERSONALITIES -->
+    <!-- ================================================================== -->
+    <span class="section-badge badge-cobalt">3. Behavioral Forensics</span>
+    <h2>Same Context API, Four Completely Different Model Personalities</h2>
+
+    <p>
+      Section 5 of the paper is my favorite part of the entire study. Instead of stopping at leaderboard averages, the authors trace <em>how</em> each model behaves when handed the exact same tools and hit with the exact same context-pressure warning at 64K. The behavioral divergence is astonishing:
+    </p>
+
+    <figure class="wide-figure">
+      <img src="assets/charts/chart_02_model_personalities_and_pressure.png" alt="Two-panel chart showing (A) median compression factor per call (GPT 3.7x, Kimi 2.1x, DeepSeek 1.8x, Opus 1.5x) alongside archive reopening rates (GPT 18.6%, Opus 14.1%, Kimi 6.9%, DeepSeek 3.5%), and (B) first-warning reaction breakdown at 64K showing Opus returns an answer 88% of the time while GPT reads docs 69%, Kimi compacts immediately 49%, and DeepSeek inspects history 46%." />
+      <figcaption>
+        <strong>Figure 4 — Behavioral Fingerprints Across Frontier Models (Data from Paper Figures 6 &amp; 7):</strong> Handing four frontier models identical instructions produces four completely different management styles—from GPT’s aggressive prune-and-reopen loop to Opus’s immediate wrap-up reflex.
+      </figcaption>
+    </figure>
+
+    <ul>
+      <li><strong>GPT-6.1 Sol — The Bold Archivist:</strong> Reads the API documentation first in <strong>69%</strong> of pressure episodes to make sure it uses the tool cleanly, then compacts aggressively—shrinking the prompt by a median of <strong>3.7× per call</strong>! Crucially, because NOOA archives originals non-destructively, GPT isn’t afraid to prune hard: it calmly reopens archived events after <strong>18.6%</strong> (~1 in 5) of its compactions whenever it needs an exact detail back.</li>
+      <li><strong>Kimi K3 — The Fast Minimalist:</strong> Acts immediately—compacting straight away in <strong>49%</strong> of pressure episodes (and inspecting history first in 27%), trimming prompts by a median of <strong>2.1×</strong> and rarely looking back (only <strong>6.9%</strong> archive reopens).</li>
+      <li><strong>DeepSeek V4 Pro — The Cautious Auditor:</strong> Uses the API most frequently overall (<strong>53%</strong> of tasks), inspects its own event history first in <strong>46%</strong> of pressure episodes, trims conservatively (<strong>1.8×</strong> median), and almost never reopens archives (<strong>3.5%</strong>).</li>
+      <li><strong>Claude Opus 5.5 — The Early Finisher:</strong> When the 64K context-pressure warning fires, Opus wraps up and returns a final answer in <strong>88%</strong> of episodes rather than compacting and continuing its investigation! Only 12% of the time does it compact right away.</li>
+    </ul>
+
+    <p>
+      This finding is a wake-up call for anyone assuming context management is "just a prompt tweak." The authors rightly point out that <strong>working inside a harness that auto-compacts does not teach a model how to self-compact</strong>. They conjecture—carefully labeling it an untested hypothesis—that OpenAI’s investment in experimental context-management tools inside Codex may explain why GPT-6.1 Sol looks natively comfortable reading docs, pruning 3.7×, and treating archived events like paged virtual memory.
+    </p>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- SECTION 4: FINDING 3 — CONTEXT ANXIETY -->
+    <!-- ================================================================== -->
+    <span class="section-badge badge-coral">4. The Behavioral Trap</span>
+    <h2>"Context Anxiety": When Models Panic and Shred Useful Work Way Too Early</h2>
+
+    <figure class="wide-figure">
+      <img src="assets/images/visual_03_context_anxiety_psychology.png" alt="Stacked comparison titled 'The Context Anxiety Trap': Top coral card shows models without a timing rule frantically compacting at 16% to 29% full and losing ~8 accuracy points; bottom emerald card shows calm 85% threshold guidance keeping full context until truly needed." />
+      <figcaption>
+        <strong>Figure 5 — The Context Anxiety Phenomenon:</strong> Remove one sentence telling the model to wait until 85% usage, and several frontier models begin compacting while 60%–84% of their context window is still completely empty.
+      </figcaption>
+    </figure>
+
+    <p>
+      Section 6 introduces one of the sharpest diagnostic concepts in recent agent research: <strong>Context Anxiety</strong> (extending prior work by Igbinedion et al., 2026). Even models that enthusiastically use the context API often misjudge—or prematurely panic about—their remaining workspace.
+    </p>
+    <p>
+      In the baseline model-driven runs, NOOA’s system prompt included a simple timing guardrail: <em>consider compacting only once usage reaches 85%</em>. When the authors removed that single timing instruction, model behavior shifted dramatically (Figure 6, left panel):
+    </p>
+    <ul>
+      <li><strong>Kimi K3 (at 128K):</strong> Median context used at first compaction collapsed from <strong>~84% down to 29%</strong> (and all the way down to ~10% at 512K!).</li>
+      <li><strong>DeepSeek V4 Pro (at 256K):</strong> Dropped from <strong>83% down to 40%</strong> (~21% at 512K).</li>
+      <li><strong>Claude Opus 5.5 (at 128K):</strong> Ironically, removing the 85% instruction caused Opus to compact <em>far more often</em>—and aggressively early, at a median of just <strong>16%</strong> of its budget!</li>
+      <li><strong>GPT-6.1 Sol:</strong> Remained notably steadier (<strong>62% → 55%</strong> at 256K), again suggesting deeper calibration around context capacity.</li>
+    </ul>
+
+    <div class="callout-card coral">
+      <strong class="kicker">Why Early Compaction Hurts — And Where the Reflex Comes From</strong>
+      Compact too early when you actually have 128K+ of headroom, and you throw away subtle cross-document details unnecessarily: without the 85% timing instruction, both <strong>Kimi K3 and DeepSeek V4 Pro lost roughly 8 accuracy points</strong> at budgets of 128K and above compared to the harness baseline.<br />
+      The authors connect this directly to training incentives: Kimi K3’s technical report documents <em>"Reasoning Effort RL"</em> that applies a <strong>−1 reward penalty</strong> whenever trajectories exceed a per-problem token budget. Optimizing models for short rollouts during reinforcement learning inadvertently trains a reflexive token-frugality habit that misfires when plenty of context space is actually available.
+    </div>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- SECTION 5: FINDING 4 — SERVING PHYSICS & SUFFIX KV CACHE REUSE -->
+    <!-- ================================================================== -->
+    <span class="section-badge badge-amber">5. The Serving Reality Check</span>
+    <h2>Why Fewer Tokens Doesn’t Automatically Equal Cheaper Inference</h2>
+
+    <p>
+      If you stopped reading at Section 6, you might walk away thinking: <em>"Awesome—Kimi used 41% fewer input tokens, so my inference bill drops 41%!"</em>
+    </p>
+    <p>
+      <strong>Not so fast.</strong> Section 7 delivers the paper’s most important systems-engineering reality check—one that almost every application-layer agent benchmark overlooks.
+    </p>
+
+    <figure class="wide-figure">
+      <img src="assets/images/visual_04_kv_cache_invalidation_vs_suffix_reuse.png" alt="Stacked diagram explaining KV Cache Invalidation vs Suffix Cache Reuse: Top coral card shows standard prefix caching reusing Block A while forcing full recomputation of both Summary and unchanged Block C; bottom emerald card shows Suffix Cache Reuse preserving both Block A and unchanged Block C, cutting prefill compute up to 15.1%." />
+      <figcaption>
+        <strong>Figure 6 — The Mid-Prompt Cache Invalidation Penalty vs. Suffix Cache Reuse:</strong> Standard prefix caching breaks the instant an agent compacts a middle segment <code>B</code>—forcing the GPU to re-prefill the entire unchanged suffix <code>C</code> from scratch.
+      </figcaption>
+    </figure>
+
+    <p>
+      Modern inference engines like vLLM and SGLang stay fast and affordable using <strong>automatic prefix caching</strong>: if turn <em>N+1</em> starts with the exact same token prefix as turn <em>N</em>, the GPU reuses the previously computed Key-Value (KV) attention tensors instead of running expensive prefill compute again.
+    </p>
+    <p>
+      Now watch what happens when an agent calls <code>self.events.collapse("3", "17")</code> in the middle of a prompt <code>[A | B | C]</code>:
+    </p>
+    <ol>
+      <li>Block <code>A</code> (system instructions + early task context) stays unchanged → <strong>prefix cache hit</strong>.</li>
+      <li>Block <code>B</code> shrinks into a short <code>Summary</code> → must be computed fresh (cheap).</li>
+      <li>Block <code>C</code> (thousands of tokens of recently retrieved documents and recent turns) <strong>didn’t change a single character</strong>—yet because it now sits <em>after</em> an edit, standard prefix caching invalidates it completely and forces full GPU recomputation!</li>
+    </ol>
+    <p>
+      Building on recent cache-editing research—NVIDIA’s <em>SideQuest</em> (Kariyappa &amp; Suh, 2026), <em>Context Language Models</em> (Shao et al., 2026), and <em>Cache Engineering for Agents</em> (Fu et al., 2026)—the authors wired NOOA’s context API into a <strong>Suffix KV Cache Reuse</strong> prototype inside <strong>SGLang</strong> running <strong>Qwen3.6-27B</strong> at a 32K context window. Instead of recomputing unchanged suffix <code>C</code>, the engine reuses its cached KV states directly as a serving approximation.
+    </p>
+
+    <figure class="wide-figure">
+      <img src="assets/charts/chart_03_anxiety_and_kv_reuse.png" alt="Two-panel chart showing (A) Context Anxiety median budget % at first compaction with 85% rule vs without across Kimi, DeepSeek, Opus, and GPT, and (B) Suffix KV Cache Reuse prefill compute reduction per request on Qwen3.6-27B at 32K: OfficeQA Pro -15.1% model-driven vs -12.6% harness, MLE-bench Lite -5.6% vs -5.3%, DeepSWE -4.3% vs -1.0%." />
+      <figcaption>
+        <strong>Figure 7 — Context Anxiety &amp; Suffix Cache Reuse Benchmarks (Data from Paper Figures 8 &amp; 13):</strong> Left: removing the 85% rule triggers massive premature compaction in Kimi, DeepSeek, and Opus. Right: reusing unchanged suffix KV caches in SGLang slashes per-request prefill tokens by up to <strong>15.1%</strong> on document-heavy workloads with <strong>zero measurable accuracy degradation</strong>.
+      </figcaption>
+    </figure>
+
+    <p>
+      Look at Panel B of Figure 7—two details jump right off the chart:
+    </p>
+    <ul>
+      <li><strong>Document-heavy agents reap the biggest serving payoff:</strong> On <strong>OfficeQA Pro</strong>, suffix KV reuse cuts prefill compute by <strong>15.1% ± 0.8%</strong> per request under model-driven editing (vs. 12.6% ± 0.7% under harness compaction), with a task score delta of literally <strong>+0.000 ± 0.02</strong>. Why is OfficeQA so dramatic? Because retained suffixes after a middle edit average <strong>~10K tokens (~60% of the prompt)</strong> due to long retrieved documents remaining active in context.</li>
+      <li><strong>Modest but real gains on coding workloads:</strong> On <strong>MLE-bench Lite</strong> (−5.6% ± 1.1%, reward delta −0.011 ± 0.03) and <strong>DeepSWE</strong> (−4.3% ± 0.3%, reward delta +0.013 ± 0.02), savings are smaller because retained suffixes are shorter—yet model-driven editing still beats harness compaction across every single benchmark (especially DeepSWE: <strong>4.3% vs. 1.0%</strong>).</li>
+    </ul>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- SECTION 6: CRITICAL REVIEW — STRENGTHS, BLIND SPOTS & BIGGER PICTURE -->
+    <!-- ================================================================== -->
+    <span class="section-badge badge-cobalt">6. Critical Review</span>
+    <h2>What This Paper Nails — And Four Important Caveats to Keep in Mind</h2>
+
+    <p>
+      A good paper review shouldn’t just echo the abstract. Here is a candid architectural critique of what Devoto et al. got brilliantly right, alongside the real limitations practitioners must factor in before redesigning their stack.
+    </p>
+
+    <h3>What the Authors Got Right</h3>
+    <ul>
+      <li><strong>Refreshingly honest cross-model evaluation:</strong> Rather than claiming universal magic, the authors show where model-driven editing fails (Claude Opus 5.5 at tight budgets), where it stalls (low-pressure MLE-bench runs), and where prompt sensitivity bites (Context Anxiety costing ~8 points).</li>
+      <li><strong>Reversible compaction as a first-class primitive:</strong> Showing that GPT-6.1 Sol reopens 18.6% of its compacted archives proves a deep design principle—<strong>aggressive summarization only works safely when paired with lossless, tag-addressable recall</strong>.</li>
+      <li><strong>Connecting agent APIs to serving-engine reality:</strong> Most agent papers stop at "token count." Measuring prefix-cache invalidation and prototyping suffix KV reuse inside SGLang moves the conversation from prompt-engineering folklore to real distributed-systems economics.</li>
+    </ul>
+
+    <h3>Four Limitations &amp; Open Engineering Questions</h3>
+    <ol>
+      <li><strong>Small benchmark footprints &amp; simulated pressure:</strong> As the authors transparently acknowledge in Section 8, 90 questions (OfficeQA Pro v2) and 22 competitions (MLE-bench Lite) leave wide variance bars on smaller deltas. Moreover, artificially shrinking the context ceiling to 16K–32K with a hard oldest-event-drop fallback emulates <em>token pressure</em>, not every subtlety of truly multi-day tasks (such as shifting goals or external state changes).</li>
+      <li><strong>Prefill compute ≠ end-to-end latency or GPU dollar cost (yet):</strong> Suffix KV reuse was tested on a single 27B dense model (<code>Qwen3.6-27B</code>) in one prototype engine, measuring <em>prefill tokens saved</em> rather than real wall-clock time-to-first-token, KV-cache memory fragmentation, or batch-scheduling overhead under multi-tenant production traffic.</li>
+      <li><strong>Approximate attention drift under chained edits remains untested at extreme depth:</strong> Reusing suffix KV states after changing the tokens <em>before</em> them is an approximation—suffix tokens never re-attend to the new summary text, and positional encodings must be carefully shifted or handled. It passed cleanly here on 32K tasks, but how well does that approximation hold after 15 consecutive mid-prompt edits in a 256K workflow? That remains an open research question.</li>
+      <li><strong>In-window context editing is only half of agent memory:</strong> Model-driven compaction governs what stays visible <em>inside the active inference window</em> during one task trajectory. It does <strong>not</strong> replace out-of-band external memory governance—such as synchronizing the 91% of state changes happening outside chat, keeping living incident ledgers updated in place, or date-stamping changing policies across months. The strongest production architectures will combine <strong>model-driven in-window context control</strong> with <strong>lifecycle-governed external memory layers</strong>.</li>
+    </ol>
+
+    <hr class="section-dots" />
+
+    <!-- ================================================================== -->
+    <!-- SECTION 7: THE CO-DESIGN FRONTIER & BUILDER PLAYBOOK -->
+    <!-- ================================================================== -->
+    <span class="section-badge badge-teal">7. The Takeaway</span>
+    <h2>The New Co-Design Frontier — And What You Should Ship Today</h2>
+
+    <figure class="wide-figure">
+      <img src="assets/images/visual_05_codesign_frontier_verdict.png" alt="Final takeaway poster showing three interlocking co-design pillars on the left (1. Context-Trained Models, 2. Surgical Agent Harnesses, 3. Cache-Editable Inference Engines) and three reviewer takeaway cards on the right." />
+      <figcaption>
+        <strong>Figure 8 — The Three-Pillar Co-Design Frontier:</strong> Pushing the accuracy–efficiency curve for autonomous agents requires co-designing models trained to manage context, harnesses with reversible context APIs, and inference engines that preserve suffix caches across edits.
+      </figcaption>
+    </figure>
+
+    <p>
+      The lasting contribution of <em>Letting Models Manage Their Own Context</em> is naming the next layer of competitive differentiation in AI infrastructure. For the past two years, model labs optimized reasoning weights, application teams wrote wrapper harnesses, and serving teams optimized static prefix caching—all in separate silos.
+    </p>
+    <p>
+      Once an agent starts actively curating its own prompt mid-trajectory, those three silos collapse into one system. Models need post-training that teaches calibrated compaction without Context Anxiety; harnesses need reversible, tag-indexed context primitives; and inference engines need first-class KV cache editing so trimming context saves real GPU cycles instead of triggering cache thrashing.
+    </p>
+
+    <div class="takeaway-box">
+      <h3>Four Practical Rules for Agent Builders (What to Apply This Week)</h3>
+      <ol>
+        <li><strong>Make every compaction reversible by ID/tag.</strong> Never destroy raw tool outputs during compaction. Archive them behind a lightweight lookup call (like <code>events[tag]</code>) so capable models can compress boldly and recover exact facts when needed.</li>
+        <li><strong>Always include an explicit timing threshold (e.g., 85%) + live usage meter.</strong> Leaving timing open-ended invites <em>Context Anxiety</em>—causing models like Kimi K3, DeepSeek V4, and Opus 5.5 to panic-prune at 16%–40% utilization and sacrifice ~8 accuracy points.</li>
+        <li><strong>Keep a harness safety net—especially across heterogeneous model routers.</strong> Because model adoption ranges from 53% down to 4%, never delete your harness-driven fallback until you have empirically verified your target model actually calls your context API under pressure.</li>
+        <li><strong>Measure cache hit rate, not just token count, when evaluating compaction.</strong> A mid-prompt edit that cuts 30% of tokens while invalidating a 60% unchanged suffix can silently increase prefill compute until your serving layer supports suffix cache reuse.</li>
+      </ol>
+    </div>
+
+    <p>
+      We are watching agent context evolve the exact same way computer memory evolved decades ago—from fixed flat buffers, to crude operating-system swapping, to hardware-assisted virtual memory co-designed with compilers and CPUs. NVIDIA’s NOOA study is an early, crystal-clear field report from that exact inflection point.
+    </p>
+    <p style="font-size: 17px; color: #575757;">
+      <em>Primary Source: Alessio Devoto et al. (NVIDIA), <a href="https://arxiv.org/html/2611.34147v1" style="color:#1d4ed8;">"Letting Models Manage Their Own Context: Where We Stand" (arXiv:2611.34147v1, Nov 25, 2026)</a>.</em>
+    </p>
+
+    <div class="tags">
+      <span class="tag">AI Agents</span>
+      <span class="tag">LLM Inference</span>
+      <span class="tag">Context Engineering</span>
+      <span class="tag">Paper Review</span>
+      <span class="tag">Software Architecture</span>
+    </div>
+  </article>
+
+</body>
+</html>
